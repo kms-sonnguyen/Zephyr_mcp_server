@@ -142,6 +142,20 @@ The server provides access to various resources through URI schemes:
 - `ZEPHYR_BASE_URL`: `https://your-company.atlassian.net`
 - `ZEPHYR_API_KEY`: Your Zephyr Scale API key (JWT). Generate it in Jira by clicking your profile picture (bottom left) → **Zephyr API keys**.
 
+### Jira Cloud – regional API endpoint (optional)
+Zephyr Scale Cloud has regional API hosts. By default the server uses the **US** endpoint (`https://api.zephyrscale.smartbear.com/v2`). If your instance uses the **EU** API (e.g. for EU data residency), set:
+- **`ZEPHYR_API_BASE_URL`**: Full base URL for the Zephyr Scale Cloud API (no trailing slash).
+
+**Example – EU:**
+```json
+"env": {
+  "ZEPHYR_BASE_URL": "https://your-company.atlassian.net",
+  "ZEPHYR_API_KEY": "your-zephyr-api-token",
+  "ZEPHYR_API_BASE_URL": "https://eu.api.zephyrscale.smartbear.com/v2"
+}
+```
+If `ZEPHYR_API_BASE_URL` is not set, the US URL is used. Omit this variable for US instances.
+
 ### Jira Data Center Configuration
 - `ZEPHYR_BASE_URL`: `https://your-jira-server.com`
 - `ZEPHYR_API_KEY`: Your Zephyr Scale API token from your Jira profile settings.
