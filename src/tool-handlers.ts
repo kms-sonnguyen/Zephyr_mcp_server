@@ -1,4 +1,5 @@
 import { AxiosInstance } from 'axios';
+import axios from 'axios';
 import { McpError, ErrorCode } from '@modelcontextprotocol/sdk/types.js';
 import {
   TestCaseArgs,
@@ -47,6 +48,7 @@ export class ZephyrToolHandlers {
     const {
       project_key, name, test_script, folder, priority, precondition,
       objective, estimated_time, labels, custom_fields, issue_links,
+      owner_id, component_id,
     } = args;
 
     const payload: any = { projectKey: project_key, name };
@@ -58,6 +60,9 @@ export class ZephyrToolHandlers {
     if (estimated_time) payload.estimatedTime = estimated_time;
     if (labels && labels.length > 0) payload.labels = labels;
     if (custom_fields) payload.customFields = custom_fields;
+    // Cloud v2 uses ownerId (Jira Account ID) and componentId (integer)
+    if (owner_id) payload.ownerId = owner_id;
+    if (component_id) payload.componentId = component_id;
 
     // Resolve folder path → folderId
     if (folder) {
@@ -96,8 +101,12 @@ export class ZephyrToolHandlers {
         }
       }
 
+      const missingCreds = !process.env.JIRA_USERNAME || !process.env.JIRA_API_TOKEN;
+      const credHint = missingCreds
+        ? '\n💡 Tip: Set JIRA_USERNAME and JIRA_API_TOKEN env vars to enable issue linking on Cloud.'
+        : '';
       const warningText = linkWarnings.length > 0
-        ? `\n⚠️ Some issue links failed:\n${linkWarnings.map(w => `  - ${w}`).join('\n')}`
+        ? `\n⚠️ Some issue links failed:\n${linkWarnings.map(w => `  - ${w}`).join('\n')}${credHint}`
         : '';
 
       return {
@@ -224,12 +233,15 @@ export class ZephyrToolHandlers {
       if (typeof name === 'string' && name.trim().length > 0) {
         const getResponse = await this.axiosInstance.get(`${this.jiraConfig.apiEndpoints.testcase}/${test_case_key}`);
         const tc = getResponse.data;
-        const projectKey = tc.projectKey ?? test_case_key.replace(/-T\d+$/, '');
+        // UpdateTestCaseInput requires: id, key, name, priority, project, status
+        // tc.project is a ProjectLink { id, self } — pass it back as-is
         await this.axiosInstance.put(`${this.jiraConfig.apiEndpoints.testcase}/${test_case_key}`, {
-          projectKey,
+          id: tc.id,
+          key: test_case_key,
           name,
           status: tc.status,
           priority: tc.priority,
+          project: tc.project,
         });
       }
 
@@ -318,8 +330,7 @@ export class ZephyrToolHandlers {
     const { project_key, name: folderPath, folder_type = 'TEST_CASE' } = args;
 
     // Cloud v2 uses folderType (not type) and parentId integer
-    // Map TEST_RUN → TEST_CYCLE for Cloud v2
-    const cloudFolderType = folder_type === 'TEST_RUN' ? 'TEST_CYCLE' : folder_type;
+    const cloudFolderType = folder_type;
 
     const segments = folderPath.replace(/^\/+|\/+$/g, '').split('/').filter(Boolean);
     if (segments.length === 0) {
@@ -504,8 +515,8 @@ export class ZephyrToolHandlers {
     if (planned_start_date) payload.plannedStartDate = planned_start_date;
     if (planned_end_date) payload.plannedEndDate = planned_end_date;
     if (custom_fields) payload.customFields = custom_fields;
-
-    // Resolve folder path → folderId
+    // Cloud v2 TestCycleInput supports ownerId (Jira Account ID)
+    if (owner) payload.ownerId = owner;
     if (folder) {
       const folderId = await resolveFolderIdByPath(
         this.axiosInstance, project_key, folder, 'TEST_CYCLE'
@@ -766,7 +777,7 @@ export class ZephyrToolHandlers {
             text: `✅ Found ${testRuns.length} test run(s):\n${JSON.stringify({
               totalCount: testRuns.length,
               testRuns: testRuns.map((tr: any) => ({
-                key: tr.key, name: tr.name, status: tr.status?.name, folder: tr.folder?.name,
+                key: tr.key, name: tr.name, status: tr.status?.id, folder: tr.folder?.name,
               })),
             }, null, 2)}`,
           }],
@@ -846,11 +857,30 @@ export class ZephyrToolHandlers {
   }
 
   private async resolveJiraIssueId(issueKey: string): Promise<number> {
-    // The Zephyr API key is a Jira-issued token — it works against the Jira REST API too.
-    // We call GET {jiraBaseUrl}/rest/api/3/issue/{key}?fields=id to get the numeric issue ID
-    // required by POST /testcases/{key}/links/issues { issueId: <integer> }.
+    // The Zephyr API key is NOT valid for the Jira REST API — Jira Cloud requires
+    // Basic Auth: base64(email:api_token) via JIRA_USERNAME + JIRA_API_TOKEN env vars.
+    const username = process.env.JIRA_USERNAME;
+    const apiToken = process.env.JIRA_API_TOKEN;
+
     const url = `${this.jiraConfig.jiraBaseUrl}/rest/api/3/issue/${issueKey}?fields=id`;
-    const response = await this.axiosInstance.get(url, { baseURL: '' });
+
+    let response;
+    if (username && apiToken) {
+      // Jira Cloud Basic Auth
+      response = await axios.get(url, {
+        headers: { 'Accept': 'application/json' },
+        auth: { username, password: apiToken },
+      });
+    } else {
+      // Fallback: try Bearer token (works for Data Center with PAT)
+      response = await axios.get(url, {
+        headers: {
+          'Accept': 'application/json',
+          'Authorization': `Bearer ${process.env.ZEPHYR_API_KEY}`,
+        },
+      });
+    }
+
     const id = parseInt(response.data.id, 10);
     if (!id || isNaN(id)) {
       throw new Error(`Could not resolve numeric ID for Jira issue "${issueKey}"`);

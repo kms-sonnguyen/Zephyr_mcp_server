@@ -27,7 +27,29 @@ Configure your MCP client with the following structure.
       "args": ["zephyr-scale-mcp-server@latest"],
       "env": {
         "ZEPHYR_BASE_URL": "https://your-company.atlassian.net",
-        "ZEPHYR_API_KEY": "your-zephyr-api-key"
+        "ZEPHYR_API_KEY": "your-zephyr-api-key",
+        "JIRA_USERNAME": "your-email@company.com",
+        "JIRA_API_TOKEN": "your-jira-api-token"
+      }
+    }
+  }
+}
+```
+> **Note**: `JIRA_USERNAME` and `JIRA_API_TOKEN` are optional but required if you want to use the `issue_links` field when creating test cases. Without them, issue linking will fail with a 401 warning (the test case is still created). Generate a Jira API token at [id.atlassian.com/manage-profile/security/api-tokens](https://id.atlassian.com/manage-profile/security/api-tokens).
+
+**Jira Cloud (EU region):**
+```json
+{
+  "mcpServers": {
+    "zephyr-server": {
+      "command": "npx",
+      "args": ["zephyr-scale-mcp-server@latest"],
+      "env": {
+        "ZEPHYR_BASE_URL": "https://your-company.atlassian.net",
+        "ZEPHYR_API_KEY": "your-zephyr-api-key",
+        "JIRA_USERNAME": "your-email@company.com",
+        "JIRA_API_TOKEN": "your-jira-api-token",
+        "ZEPHYR_API_BASE_URL": "https://eu.api.zephyrscale.smartbear.com/v2"
       }
     }
   }
@@ -99,18 +121,19 @@ The server provides access to various resources through URI schemes:
 
 ## Usage Examples
 
-### Create a BDD Test Case
+### Create a BDD Test Case with Issue Links
 ```json
 {
   "project_key": "PROJ",
   "name": "User Authentication",
   "test_script": {
     "type": "BDD",
-    "text": "Feature: User Login\n\nScenario: Valid user login\n  Given a user with valid credentials\n  When the user attempts to log in\n  Then the user should be authenticated successfully"
-  }
+    "text": "Given a user with valid credentials\nWhen the user attempts to log in\nThen the user should be authenticated successfully"
+  },
+  "issue_links": ["PROJ-123", "PROJ-456"]
 }
 ```
-**Note**: The server will automatically convert markdown-style BDD to proper Gherkin format.
+**Note**: `issue_links` requires `JIRA_USERNAME` and `JIRA_API_TOKEN` to be set (Cloud only). Link failures are reported as warnings — the test case is still created.
 
 ### Use a Live Test Case as a Template
 1. Fetch an existing test case: `zephyr://testcase/PROJ-T123`
@@ -139,26 +162,25 @@ The server provides access to various resources through URI schemes:
 ## Authentication
 
 ### Jira Cloud Configuration
-- `ZEPHYR_BASE_URL`: `https://your-company.atlassian.net`
-- `ZEPHYR_API_KEY`: Your Zephyr Scale API key (JWT). Generate it in Jira by clicking your profile picture (bottom left) → **Zephyr API keys**.
 
-### Jira Cloud – regional API endpoint (optional)
-Zephyr Scale Cloud has regional API hosts. By default the server uses the **US** endpoint (`https://api.zephyrscale.smartbear.com/v2`). If your instance uses the **EU** API (e.g. for EU data residency), set:
-- **`ZEPHYR_API_BASE_URL`**: Full base URL for the Zephyr Scale Cloud API (no trailing slash).
+| Variable | Required | Description |
+|---|---|---|
+| `ZEPHYR_BASE_URL` | ✅ | Your Jira Cloud URL, e.g. `https://your-company.atlassian.net` |
+| `ZEPHYR_API_KEY` | ✅ | Zephyr Scale API key (JWT). Generate in Jira: profile picture (bottom left) → **Zephyr API keys** |
+| `JIRA_USERNAME` | ⚠️ Optional* | Your Jira account email address |
+| `JIRA_API_TOKEN` | ⚠️ Optional* | Jira API token. Generate at [id.atlassian.com/manage-profile/security/api-tokens](https://id.atlassian.com/manage-profile/security/api-tokens) |
+| `ZEPHYR_API_BASE_URL` | Optional | Override the Zephyr API base URL (e.g. for EU: `https://eu.api.zephyrscale.smartbear.com/v2`). Defaults to US endpoint. |
+| `JIRA_TYPE` | Optional | Force `"cloud"` or `"datacenter"` — overrides auto-detection |
 
-**Example – EU:**
-```json
-"env": {
-  "ZEPHYR_BASE_URL": "https://your-company.atlassian.net",
-  "ZEPHYR_API_KEY": "your-zephyr-api-token",
-  "ZEPHYR_API_BASE_URL": "https://eu.api.zephyrscale.smartbear.com/v2"
-}
-```
-If `ZEPHYR_API_BASE_URL` is not set, the US URL is used. Omit this variable for US instances.
+> **\* `JIRA_USERNAME` + `JIRA_API_TOKEN`**: Required only for the `issue_links` feature on Cloud. The Zephyr API key cannot authenticate against the Jira REST API, so a separate Jira credential is needed to resolve issue keys to numeric IDs. Without these, `issue_links` will fail with a 401 warning — the test case is still created successfully.
 
 ### Jira Data Center Configuration
-- `ZEPHYR_BASE_URL`: `https://your-jira-server.com`
-- `ZEPHYR_API_KEY`: Your Zephyr Scale API token from your Jira profile settings.
+
+| Variable | Required | Description |
+|---|---|---|
+| `ZEPHYR_BASE_URL` | ✅ | Your Jira server URL, e.g. `https://your-jira-server.com` |
+| `ZEPHYR_API_KEY` | ✅ | Zephyr Scale API token from your Jira profile settings |
+| `JIRA_TYPE` | Optional | Set to `"datacenter"` to override auto-detection |
 
 ### Automatic Detection
 The server automatically detects your Jira type based on `ZEPHYR_BASE_URL` — URLs containing `.atlassian.net` are treated as Cloud, everything else as Data Center. Override with `JIRA_TYPE="cloud"` or `JIRA_TYPE="datacenter"`.

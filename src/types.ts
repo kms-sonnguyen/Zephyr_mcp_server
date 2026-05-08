@@ -31,8 +31,10 @@ export interface TestCaseArgs {
   priority?: 'High' | 'Normal' | 'Low';
   precondition?: string;
   objective?: string;
-  component?: string;
-  owner?: string;
+  component?: string;       // Data Center: component name
+  owner?: string;           // Data Center: owner name
+  component_id?: number;    // Cloud: Jira component ID (integer)
+  owner_id?: string;        // Cloud: Jira Account ID
   estimated_time?: number;
   labels?: string[];
   issue_links?: string[];
@@ -49,7 +51,7 @@ export interface UpdateBddArgs {
 export interface FolderArgs {
   project_key: string;
   name: string; // Full folder path including parent folders (e.g., "/folder/subfolder")
-  folder_type?: 'TEST_CASE' | 'TEST_PLAN' | 'TEST_RUN';
+  folder_type?: 'TEST_CASE' | 'TEST_PLAN' | 'TEST_CYCLE';
 }
 
 export interface TestRunArgs {

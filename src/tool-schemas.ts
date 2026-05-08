@@ -91,13 +91,13 @@ export const toolSchemas = [
           type: 'string',
           description: 'Test objective (optional)',
         },
-        component: {
-          type: 'string',
-          description: 'Component name (optional)',
+        component_id: {
+          type: 'integer',
+          description: 'Jira component ID (optional, Cloud only — use the numeric component ID, not the name)',
         },
-        owner: {
+        owner_id: {
           type: 'string',
-          description: 'Test case owner (optional)',
+          description: 'Test case owner Jira Account ID (optional, Cloud only — e.g. "5b10a2844c20165700ede21g")',
         },
         estimated_time: {
           type: 'number',
@@ -191,7 +191,7 @@ export const toolSchemas = [
         folder_type: {
           type: 'string',
           description: 'Type of folder',
-          enum: ['TEST_CASE', 'TEST_PLAN', 'TEST_RUN'],
+          enum: ['TEST_CASE', 'TEST_PLAN', 'TEST_CYCLE'],
           default: 'TEST_CASE',
         },
       },
