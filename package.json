@@ -5,7 +5,7 @@
   "type": "module",
   "main": "./build/index.js",
   "bin": {
-    "zephyr-scale-mcp": "./build/index.js"
+    "zephyr-scale-mcp": "build/index.js"
   },
   "files": [
     "build/",
