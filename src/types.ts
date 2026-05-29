@@ -91,6 +91,7 @@ export interface GetTestExecutionArgs {
 export interface SearchTestRunsArgs {
   project_key?: string;
   folder?: string;
+  folder_id?: number;
   max_results?: number;
   fields?: string;
 }

@@ -879,10 +879,10 @@ export class ZephyrToolHandlers {
   }
 
   async searchTestRuns(args: SearchTestRunsArgs) {
-    const { project_key, folder, max_results = 200, fields } = args;
+    const { project_key, folder, folder_id, max_results = 200, fields } = args;
 
-    if (!project_key && !folder) {
-      throw new McpError(ErrorCode.InvalidParams, 'At least one of project_key or folder must be provided.');
+    if (!project_key && !folder && !folder_id) {
+      throw new McpError(ErrorCode.InvalidParams, 'At least one of project_key, folder, or folder_id must be provided.');
     }
 
     if (this.jiraConfig.type === 'cloud') {
@@ -891,7 +891,10 @@ export class ZephyrToolHandlers {
         const params: Record<string, any> = { maxResults: max_results };
         if (project_key) params.projectKey = project_key;
 
-        if (folder && project_key) {
+        // folder_id takes precedence over folder path
+        if (folder_id) {
+          params.folderId = folder_id;
+        } else if (folder && project_key) {
           const folderId = await resolveFolderIdByPath(
             this.axiosInstance, project_key, folder, 'TEST_CYCLE'
           );

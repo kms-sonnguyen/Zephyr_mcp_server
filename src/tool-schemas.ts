@@ -351,7 +351,7 @@ export const toolSchemas = [
   },
   {
     name: 'search_test_runs',
-    description: 'Search for test runs using a query. Supports filtering by projectKey and/or folder path.',
+    description: 'Search for test runs using a query. Supports filtering by projectKey and/or folder path. On Cloud, only returns cycles in the exact folder (not sub-folders). Use folder_id for direct numeric ID lookup (skips path resolution).',
     inputSchema: {
       type: 'object',
       properties: {
@@ -361,7 +361,11 @@ export const toolSchemas = [
         },
         folder: {
           type: 'string',
-          description: 'Folder path to filter test runs by (e.g., "/MyFolder/SubFolder")',
+          description: 'Folder path to filter test runs by (e.g., "/MyFolder/SubFolder"). Resolved to a numeric folderId on Cloud.',
+        },
+        folder_id: {
+          type: 'number',
+          description: 'Numeric folder ID to filter test runs by (optional). If provided, takes precedence over folder path and skips path resolution. Use this when you already know the folder ID.',
         },
         max_results: {
           type: 'number',
