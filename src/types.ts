@@ -96,6 +96,12 @@ export interface SearchTestRunsArgs {
   fields?: string;
 }
 
+export interface ListExecutionsByCycleArgs {
+  test_cycle_key: string;
+  project_key: string;
+  max_results?: number;
+}
+
 export type JiraType = 'cloud' | 'datacenter';
 
 export interface ApiEndpoints {

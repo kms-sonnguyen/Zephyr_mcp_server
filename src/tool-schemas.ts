@@ -380,6 +380,29 @@ export const toolSchemas = [
     },
   },
   {
+    name: 'list_executions_by_cycle',
+    description: 'List all test executions for a specific test cycle. Returns execution status, executedBy, actualEndDate for each test case in the cycle. Cloud only.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        test_cycle_key: {
+          type: 'string',
+          description: 'Test cycle key (e.g., DDCN-R371)',
+        },
+        project_key: {
+          type: 'string',
+          description: 'Project key (required for Cloud)',
+        },
+        max_results: {
+          type: 'number',
+          description: 'Maximum number of results to return (optional, default 100)',
+          default: 100,
+        },
+      },
+      required: ['test_cycle_key', 'project_key'],
+    },
+  },
+  {
     name: 'delete_test_run',
     description: 'Delete a specific test run (Data Center only — not supported on Cloud v2)',
     inputSchema: {

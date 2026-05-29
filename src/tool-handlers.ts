@@ -10,6 +10,7 @@ import {
   AddTestCasesToRunArgs,
   SearchTestRunsArgs,
   GetTestExecutionArgs,
+  ListExecutionsByCycleArgs,
   JiraConfig
 } from './types.js';
 import { convertToGherkin, resolveFolderIdByPath } from './utils.js';
@@ -989,6 +990,89 @@ export class ZephyrToolHandlers {
       };
     } catch (error) {
       throw new McpError(ErrorCode.InternalError, `Failed to add test cases: ${this.formatError(error)}`);
+    }
+  }
+
+  async listExecutionsByCycle(args: ListExecutionsByCycleArgs) {
+    const { test_cycle_key, project_key, max_results = 100 } = args;
+
+    if (this.jiraConfig.type === 'cloud') {
+      try {
+        // Cloud v2: GET /testexecutions?projectKey=X&testCycle=Y
+        const params: Record<string, any> = {
+          projectKey: project_key,
+          testCycle: test_cycle_key,
+          maxResults: max_results,
+        };
+
+        const response = await this.axiosInstance.get('/testexecutions', { params });
+
+        const executions = Array.isArray(response.data)
+          ? response.data
+          : response.data?.values ?? [];
+
+        const summary = executions.map((ex: any) => ({
+          key: ex.key,
+          testCaseKey: ex.testCase?.self?.match(/testcases\/(.+?)\/versions/)?.[1] || ex.testCase?.id,
+          status: ex.testExecutionStatus?.id,
+          statusName: ex.testExecutionStatus?.name,
+          executedById: ex.executedById,
+          assignedToId: ex.assignedToId,
+          actualEndDate: ex.actualEndDate,
+          automated: ex.automated,
+          comment: ex.comment,
+        }));
+
+        // Count statuses
+        const statusCounts: Record<string, number> = {};
+        for (const ex of executions) {
+          const statusId = ex.testExecutionStatus?.id?.toString() || 'unknown';
+          statusCounts[statusId] = (statusCounts[statusId] || 0) + 1;
+        }
+
+        return {
+          content: [{
+            type: 'text',
+            text: `✅ Found ${executions.length} execution(s) for cycle ${test_cycle_key}:\n${JSON.stringify({
+              cycleKey: test_cycle_key,
+              totalExecutions: executions.length,
+              statusCounts,
+              executions: summary,
+            }, null, 2)}`,
+          }],
+        };
+      } catch (error) {
+        throw new McpError(ErrorCode.InternalError, `Failed to list executions: ${this.formatError(error)}`);
+      }
+    }
+
+    // Data Center: GET /rest/atm/1.0/testrun/{key}/testresults
+    try {
+      const response = await this.axiosInstance.get(
+        `${this.jiraConfig.apiEndpoints.testrun}/${test_cycle_key}/testresults`
+      );
+
+      const results = Array.isArray(response.data) ? response.data : [];
+
+      return {
+        content: [{
+          type: 'text',
+          text: `✅ Found ${results.length} execution(s) for cycle ${test_cycle_key}:\n${JSON.stringify({
+            cycleKey: test_cycle_key,
+            totalExecutions: results.length,
+            executions: results.map((r: any) => ({
+              id: r.id,
+              testCaseKey: r.testCaseKey,
+              status: r.status,
+              executedBy: r.executedBy,
+              executionDate: r.executionDate,
+              automated: r.automated,
+            })),
+          }, null, 2)}`,
+        }],
+      };
+    } catch (error) {
+      throw new McpError(ErrorCode.InternalError, `Failed to list executions: ${this.formatError(error)}`);
     }
   }
 
