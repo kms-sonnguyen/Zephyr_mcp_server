@@ -107,12 +107,14 @@ The server provides access to various resources through URI schemes:
 
 ### Test Run Management
 - `create_test_run`: Create a new test run.
-- `get_test_run`: Get detailed information about a specific test run.
+- `get_test_run`: Get detailed information about a specific test run, including resolved status name.
+- `update_test_run`: Update an existing test cycle — set owner, name, description, dates, or status. *(Cloud only)*
 - `get_test_run_cases`: Get test case keys from a test run.
 - `add_test_cases_to_run`: Add test cases to an existing test run. *(Cloud only)*
 
 ### Test Execution & Search
 - `get_test_execution`: Get detailed individual test execution results.
+- `list_executions_by_cycle`: List all test executions for a specific test cycle with status, executor, and date. *(Cloud only)*
 - `search_test_cases_by_folder`: Search for test cases in a specific folder.
 - `search_test_runs`: Search for test runs by project key and/or folder path.
 
