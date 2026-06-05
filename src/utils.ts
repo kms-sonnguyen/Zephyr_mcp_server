@@ -103,6 +103,27 @@ export const priorityMapping: { [key: string]: string } = {
 };
 
 /**
+ * Decodes the Atlassian Account ID from the Zephyr JWT API key.
+ * The JWT payload contains context.user.accountId — no extra API call needed.
+ * Returns null if the token is missing or malformed.
+ */
+export function getAccountIdFromApiKey(apiKey?: string): string | null {
+  try {
+    const token = apiKey ?? process.env.ZEPHYR_API_KEY;
+    if (!token) return null;
+    const parts = token.split('.');
+    if (parts.length < 2) return null;
+    // Base64url decode the payload (add padding as needed)
+    const payload = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+    const padded = payload + '='.repeat((4 - payload.length % 4) % 4);
+    const decoded = JSON.parse(Buffer.from(padded, 'base64').toString('utf8'));
+    return decoded?.context?.user?.accountId ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Detects whether the Jira instance is Cloud or Data Center based on the base URL.
  */
 export function detectJiraType(baseUrl: string): 'cloud' | 'datacenter' {

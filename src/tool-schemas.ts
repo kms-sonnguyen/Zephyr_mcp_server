@@ -403,6 +403,44 @@ export const toolSchemas = [
     },
   },
   {
+    name: 'update_test_run',
+    description: 'Update an existing test cycle — set owner, name, description, dates, or status. Unspecified fields are preserved. Cloud only.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        test_run_key: {
+          type: 'string',
+          description: 'Test cycle key to update (e.g., PROJ-R123)',
+        },
+        owner: {
+          type: 'string',
+          description: 'Jira Account ID of the new owner (e.g., "6269ee89494f17007056d8f0")',
+        },
+        name: {
+          type: 'string',
+          description: 'New name for the test cycle (optional)',
+        },
+        description: {
+          type: 'string',
+          description: 'New description (optional)',
+        },
+        planned_start_date: {
+          type: 'string',
+          description: 'Planned start date in ISO format (optional)',
+        },
+        planned_end_date: {
+          type: 'string',
+          description: 'Planned end date in ISO format (optional)',
+        },
+        status_id: {
+          type: 'number',
+          description: 'Numeric status ID to set (optional)',
+        },
+      },
+      required: ['test_run_key'],
+    },
+  },
+  {
     name: 'delete_test_run',
     description: 'Delete a specific test run (Data Center only — not supported on Cloud v2)',
     inputSchema: {

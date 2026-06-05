@@ -13,7 +13,7 @@ import {
   ListExecutionsByCycleArgs,
   JiraConfig
 } from './types.js';
-import { convertToGherkin, resolveFolderIdByPath } from './utils.js';
+import { convertToGherkin, resolveFolderIdByPath, getAccountIdFromApiKey } from './utils.js';
 
 export class ZephyrToolHandlers {
   constructor(
@@ -74,8 +74,9 @@ export class ZephyrToolHandlers {
     if (estimated_time) payload.estimatedTime = estimated_time;
     if (labels && labels.length > 0) payload.labels = labels;
     if (custom_fields) payload.customFields = custom_fields;
-    // Cloud v2 uses ownerId (Jira Account ID) and componentId (integer)
-    if (owner_id) payload.ownerId = owner_id;
+    // Default ownerId to the account ID embedded in the Zephyr API key JWT
+    const resolvedOwner = owner_id ?? getAccountIdFromApiKey();
+    if (resolvedOwner) payload.ownerId = resolvedOwner;
     if (component_id) payload.componentId = component_id;
 
     // Resolve folder path → folderId
@@ -544,6 +545,69 @@ export class ZephyrToolHandlers {
     }
   }
 
+  async updateTestRun(args: any) {
+    const { test_run_key, owner, name, description, planned_start_date, planned_end_date, status_id } = args;
+
+    if (this.jiraConfig.type !== 'cloud') {
+      throw new McpError(ErrorCode.InvalidRequest, 'update_test_run is only supported on Zephyr Scale Cloud.');
+    }
+
+    try {
+      // Fetch current cycle to preserve required fields
+      const getResponse = await this.axiosInstance.get(`${this.jiraConfig.apiEndpoints.testrun}/${test_run_key}`);
+      const current = getResponse.data;
+
+      const payload: any = {
+        id: current.id,
+        key: test_run_key,
+        name: name ?? current.name,
+        project: current.project,
+        status: status_id ? { id: status_id } : current.status,
+      };
+
+      if (description !== undefined) payload.description = description;
+      else if (current.description) payload.description = current.description;
+
+      if (planned_start_date !== undefined) payload.plannedStartDate = planned_start_date;
+      else if (current.plannedStartDate) payload.plannedStartDate = current.plannedStartDate;
+
+      if (planned_end_date !== undefined) payload.plannedEndDate = planned_end_date;
+      else if (current.plannedEndDate) payload.plannedEndDate = current.plannedEndDate;
+
+      if (owner !== undefined) payload.owner = { accountId: owner };
+      else if (current.owner) payload.owner = current.owner;
+
+      if (current.jiraProjectVersion) payload.jiraProjectVersion = current.jiraProjectVersion;
+      if (current.folder) payload.folder = current.folder;
+      if (current.customFields && Object.keys(current.customFields).length > 0) {
+        payload.customFields = current.customFields;
+      }
+
+      await this.axiosInstance.put(`${this.jiraConfig.apiEndpoints.testrun}/${test_run_key}`, payload);
+
+      // Resolve status name for the response
+      const projectKey = test_run_key.replace(/-R\d+$/, '');
+      const statusName = payload.status?.id
+        ? await this.resolveStatusName(payload.status.id)
+        : null;
+
+      return {
+        content: [{
+          type: 'text',
+          text: `✅ Updated test cycle ${test_run_key} successfully.\n${JSON.stringify({
+            key: test_run_key,
+            name: payload.name,
+            owner: payload.owner ?? null,
+            status: statusName ? { id: payload.status?.id, name: statusName } : payload.status,
+          }, null, 2)}`,
+        }],
+      };
+    } catch (error) {
+      if (error instanceof McpError) throw error;
+      throw new McpError(ErrorCode.InternalError, `Failed to update test run: ${this.formatError(error)}`);
+    }
+  }
+
   async deleteTestCase(args: any) {
     if (this.jiraConfig.type === 'cloud') {
       throw new McpError(
@@ -614,8 +678,9 @@ export class ZephyrToolHandlers {
     if (planned_start_date) payload.plannedStartDate = planned_start_date;
     if (planned_end_date) payload.plannedEndDate = planned_end_date;
     if (custom_fields) payload.customFields = custom_fields;
-    // Cloud v2 TestCycleInput supports ownerId (Jira Account ID)
-    if (owner) payload.ownerId = owner;
+    // Default ownerId to the account ID embedded in the Zephyr API key JWT
+    const resolvedOwner = owner ?? getAccountIdFromApiKey();
+    if (resolvedOwner) payload.ownerId = resolvedOwner;
     // Link to a Jira project version/release (integer ID)
     if (jira_project_version) payload.jiraProjectVersion = jira_project_version;
     if (folder) {
@@ -735,14 +800,29 @@ export class ZephyrToolHandlers {
     }
   }
 
+  private async resolveStatusName(statusId: number): Promise<string | null> {
+    try {
+      const response = await this.axiosInstance.get(`/statuses/${statusId}`);
+      return response.data?.name ?? null;
+    } catch {
+      return null;
+    }
+  }
+
   async getTestRun(args: any) {
     const { test_run_key } = args;
-    // Both Cloud (/testcycles/{key}) and DC (/rest/atm/1.0/testrun/{key}) handled
-    // via apiEndpoints.testrun which now correctly maps to /testcycles for Cloud
     try {
       const response = await this.axiosInstance.get(`${this.jiraConfig.apiEndpoints.testrun}/${test_run_key}`);
+      const data = response.data;
+
+      // Resolve status name — extract project key from the cycle key (e.g. DDCN-R377 → DDCN)
+      if (data?.status?.id) {
+        const statusName = await this.resolveStatusName(data.status.id);
+        if (statusName) data.status.name = statusName;
+      }
+
       return {
-        content: [{ type: 'text', text: JSON.stringify(response.data, null, 2) }],
+        content: [{ type: 'text', text: JSON.stringify(data, null, 2) }],
       };
     } catch (error) {
       throw new McpError(ErrorCode.InternalError, `Failed to get test run: ${this.formatError(error)}`);
