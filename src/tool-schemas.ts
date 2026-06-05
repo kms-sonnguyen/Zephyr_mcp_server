@@ -197,6 +197,32 @@ export const toolSchemas = [
     },
   },
   {
+    name: 'get_folders',
+    description: 'Get folders from Zephyr Scale. All parameters are optional. If folder_path is provided, returns the full subtree (the folder and all its descendants at every depth) under that path. Otherwise returns all folders matching the filters.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        project_key: {
+          type: 'string',
+          description: 'Jira project key filter (e.g., "PROJ"). Optional.',
+        },
+        folder_type: {
+          type: 'string',
+          description: 'Folder type filter (optional)',
+          enum: ['TEST_CASE', 'TEST_PLAN', 'TEST_CYCLE'],
+        },
+        folder_path: {
+          type: 'string',
+          description: 'Folder path to filter by (e.g., "/CRM on Wechat"). Returns the matching folder and all folders nested beneath it at any depth. Requires project_key and folder_type to resolve the path.',
+        },
+        max_results: {
+          type: 'number',
+          description: 'Maximum total number of folders to return (optional). Defaults to all folders.',
+        },
+      },
+    },
+  },
+  {
     name: 'get_test_run_cases',
     description: 'Get test case keys from a test run',
     inputSchema: {

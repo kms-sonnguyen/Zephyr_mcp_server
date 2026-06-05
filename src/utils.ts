@@ -11,22 +11,34 @@ export async function resolveFolderIdByPath(
   if (segments.length === 0) return null;
 
   try {
-    // Fetch all folders for the project + type (up to 1000)
-    const response = await axiosInstance.get('/folders', {
-      params: { projectKey, folderType, maxResults: 1000 },
-    });
+    // Paginate through all folders for the project + type
+    const pageSize = 1000;
+    const allFolders: Array<{ id: number; parentId: number | null; name: string }> = [];
+    let startAt = 0;
+    let isLast = false;
 
-    const folders: Array<{ id: number; parentId: number | null; name: string }> =
-      Array.isArray(response.data)
-        ? response.data
-        : response.data?.values ?? [];
+    while (!isLast) {
+      const response = await axiosInstance.get('/folders', {
+        params: { projectKey, folderType, maxResults: pageSize, startAt },
+      });
+
+      const page: Array<{ id: number; parentId: number | null; name: string }> =
+        Array.isArray(response.data)
+          ? response.data
+          : response.data?.values ?? [];
+
+      allFolders.push(...page);
+
+      isLast = response.data?.isLast === true || page.length < pageSize;
+      startAt += page.length;
+    }
 
     // Walk segments top-down, matching by name under the correct parent
     let parentId: number | null = null;
     let matchedId: number | null = null;
 
     for (const segment of segments) {
-      const match = folders.find(
+      const match = allFolders.find(
         (f) => f.name === segment && (f.parentId ?? null) === parentId
       );
       if (!match) return null;

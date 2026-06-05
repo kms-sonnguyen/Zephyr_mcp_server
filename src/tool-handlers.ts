@@ -800,6 +800,90 @@ export class ZephyrToolHandlers {
     }
   }
 
+  async getFolders(args: any) {
+    const { project_key, folder_type, folder_path, max_results } = args;
+
+    try {
+      const pageSize = 1000;
+      const allFolders: any[] = [];
+      let startAt = 0;
+      let isLast = false;
+
+      while (!isLast) {
+        const params: Record<string, any> = { maxResults: pageSize, startAt };
+        if (project_key) params.projectKey = project_key;
+        if (folder_type) params.folderType = folder_type;
+
+        const response = await this.axiosInstance.get('/folders', { params });
+
+        const page: any[] = Array.isArray(response.data)
+          ? response.data
+          : response.data?.values ?? [];
+
+        allFolders.push(...page);
+
+        isLast = response.data?.isLast === true || page.length < pageSize;
+        startAt += page.length;
+
+        if (max_results && allFolders.length >= max_results) break;
+      }
+
+      let results: any[];
+
+      if (folder_path) {
+        // Resolve the root folder ID from the path, then collect full subtree via BFS
+        const rootId = await resolveFolderIdByPath(
+          this.axiosInstance, project_key, folder_path, folder_type ?? 'TEST_CASE'
+        );
+
+        if (rootId === null) {
+          return {
+            content: [{
+              type: 'text',
+              text: `⚠️ Folder not found: "${folder_path}" in project ${project_key}.`,
+            }],
+          };
+        }
+
+        // BFS over the already-fetched flat list — no extra API calls
+        const subtreeIds = new Set<number>([rootId]);
+        const queue = [rootId];
+        while (queue.length > 0) {
+          const current = queue.shift()!;
+          for (const f of allFolders) {
+            if ((f.parentId ?? null) === current && !subtreeIds.has(f.id)) {
+              subtreeIds.add(f.id);
+              queue.push(f.id);
+            }
+          }
+        }
+
+        results = allFolders.filter(f => subtreeIds.has(f.id));
+      } else {
+        results = allFolders;
+      }
+
+      if (max_results) results = results.slice(0, max_results);
+
+      return {
+        content: [{
+          type: 'text',
+          text: JSON.stringify({
+            totalCount: results.length,
+            folders: results.map((f: any) => ({
+              id: f.id,
+              name: f.name,
+              parentId: f.parentId ?? null,
+              folderType: f.folderType,
+            })),
+          }, null, 2),
+        }],
+      };
+    } catch (error) {
+      throw new McpError(ErrorCode.InternalError, `Failed to get folders: ${this.formatError(error)}`);
+    }
+  }
+
   private async resolveStatusName(statusId: number): Promise<string | null> {
     try {
       const response = await this.axiosInstance.get(`/statuses/${statusId}`);
@@ -908,13 +992,32 @@ export class ZephyrToolHandlers {
           };
         }
 
-        const response = await this.axiosInstance.get(this.jiraConfig.apiEndpoints.testcase, {
-          params: { projectKey: project_key, folderId, maxResults: max_results },
-        });
+        // Paginate through all results — the API returns up to 1000 per page
+        const pageSize = Math.min(max_results, 1000);
+        const allTestCases: any[] = [];
+        let startAt = 0;
+        let isLast = false;
 
-        const testCases = Array.isArray(response.data)
-          ? response.data
-          : response.data?.values ?? [];
+        while (!isLast && allTestCases.length < max_results) {
+          const response = await this.axiosInstance.get(this.jiraConfig.apiEndpoints.testcase, {
+            params: { projectKey: project_key, folderId, maxResults: pageSize, startAt },
+          });
+
+          const page = Array.isArray(response.data)
+            ? response.data
+            : response.data?.values ?? [];
+
+          allTestCases.push(...page);
+
+          // Stop if the API signals last page, or we got fewer results than requested
+          isLast = response.data?.isLast === true || page.length < pageSize;
+          startAt += page.length;
+
+          // Safety: never exceed max_results
+          if (allTestCases.length >= max_results) break;
+        }
+
+        const testCases = allTestCases.slice(0, max_results);
 
         return {
           content: [{
