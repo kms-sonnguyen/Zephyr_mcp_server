@@ -115,11 +115,12 @@ The server provides access to various resources through URI schemes:
 ### Test Execution & Search
 - `get_test_execution`: Get detailed individual test execution results.
 - `list_executions_by_cycle`: List all test executions for a specific test cycle with status, executor, and date. *(Cloud only)*
-- `search_test_cases_by_folder`: Search for test cases in a specific folder.
+- `search_test_cases_by_folder`: Search for test cases in a specific folder. Automatically paginates through all results.
 - `search_test_runs`: Search for test runs by project key and/or folder path.
 
 ### Organization
 - `create_folder`: Create a new folder in Zephyr Scale.
+- `get_folders`: List folders, optionally filtered by project, type, and path. When `folder_path` is given, returns the matching folder and its full subtree at every depth.
 
 ## Usage Examples
 
