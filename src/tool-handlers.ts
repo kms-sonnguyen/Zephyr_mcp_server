@@ -11,6 +11,8 @@ import {
   SearchTestRunsArgs,
   GetTestExecutionArgs,
   ListExecutionsByCycleArgs,
+  GetTestCaseStepsArgs,
+  UpdateTestCaseStepsArgs,
   JiraConfig
 } from './types.js';
 import { convertToGherkin, resolveFolderIdByPath, getAccountIdFromApiKey } from './utils.js';
@@ -414,6 +416,36 @@ export class ZephyrToolHandlers {
     } catch (error) {
       if (error instanceof McpError) throw error;
       throw new McpError(ErrorCode.InternalError, `Failed to update test case BDD: ${this.formatError(error)}`);
+    }
+  }
+
+  async getTestCaseSteps(args: GetTestCaseStepsArgs) {
+    if (this.jiraConfig.type === 'datacenter') {
+      throw new McpError(
+        ErrorCode.InvalidRequest,
+        'get_test_case_steps is only supported on Zephyr Scale Cloud. The Data Center API (v1) does not provide a dedicated /teststeps endpoint.'
+      );
+    }
+
+    const { test_case_key, start_at = 0, max_results = 100 } = args;
+
+    if (start_at < 0) {
+      throw new McpError(ErrorCode.InvalidParams, `start_at must be >= 0, got ${start_at}`);
+    }
+    if (max_results < 1 || max_results > 100) {
+      throw new McpError(ErrorCode.InvalidParams, `max_results must be between 1 and 100, got ${max_results}`);
+    }
+
+    try {
+      const response = await this.axiosInstance.get(
+        `${this.jiraConfig.apiEndpoints.testcase}/${test_case_key}/teststeps`,
+        { params: { startAt: start_at, maxResults: max_results } }
+      );
+      return {
+        content: [{ type: 'text', text: JSON.stringify(response.data, null, 2) }],
+      };
+    } catch (error) {
+      throw new McpError(ErrorCode.InternalError, `Failed to get test case steps: ${this.formatError(error)}`);
     }
   }
 

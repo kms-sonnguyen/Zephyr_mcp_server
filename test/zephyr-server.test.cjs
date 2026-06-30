@@ -238,6 +238,78 @@ class ZephyrServerTest {
     }
   }
 
+  async testGetTestCaseStepsUnit() {
+    const { ZephyrToolHandlers } = await import('../build/tool-handlers.js');
+    const { McpError } = await import('@modelcontextprotocol/sdk/types.js');
+
+    // --- DC rejection ---
+    const dcConfig = {
+      type: 'datacenter',
+      apiEndpoints: { testcase: 'http://dc.example.com/rest/atm/1.0/testcase' }
+    };
+    const dcHandlers = new ZephyrToolHandlers({}, dcConfig);
+    try {
+      await dcHandlers.getTestCaseSteps({ test_case_key: 'QA-T1' });
+      throw new Error('Expected McpError for datacenter');
+    } catch (e) {
+      if (!(e instanceof McpError)) throw new Error(`Expected McpError for DC rejection, got: ${e.message}`);
+    }
+
+    // --- Param validation ---
+    const cloudConfig = {
+      type: 'cloud',
+      apiEndpoints: { testcase: 'https://api.zephyrscale.smartbear.com/v2/testcases' }
+    };
+    const requests = [];
+    const mockAxios = {
+      get: async (url, config) => {
+        requests.push({ url, params: config && config.params });
+        return { data: { values: [], total: 0, startAt: 0, maxResults: 100 } };
+      }
+    };
+    const cloudHandlers = new ZephyrToolHandlers(mockAxios, cloudConfig);
+
+    // start_at < 0 rejected
+    try {
+      await cloudHandlers.getTestCaseSteps({ test_case_key: 'QA-T1', start_at: -1 });
+      throw new Error('Expected McpError for start_at < 0');
+    } catch (e) {
+      if (!(e instanceof McpError)) throw new Error(`Expected McpError for start_at=-1, got: ${e.message}`);
+    }
+
+    // max_results = 0 rejected
+    try {
+      await cloudHandlers.getTestCaseSteps({ test_case_key: 'QA-T1', max_results: 0 });
+      throw new Error('Expected McpError for max_results=0');
+    } catch (e) {
+      if (!(e instanceof McpError)) throw new Error(`Expected McpError for max_results=0, got: ${e.message}`);
+    }
+
+    // max_results = 101 rejected
+    try {
+      await cloudHandlers.getTestCaseSteps({ test_case_key: 'QA-T1', max_results: 101 });
+      throw new Error('Expected McpError for max_results=101');
+    } catch (e) {
+      if (!(e instanceof McpError)) throw new Error(`Expected McpError for max_results=101, got: ${e.message}`);
+    }
+
+    // --- Successful call with defaults ---
+    requests.length = 0;
+    const result = await cloudHandlers.getTestCaseSteps({ test_case_key: 'QA-T1' });
+    if (!result.content || !result.content[0] || !result.content[0].text.includes('"total"')) {
+      throw new Error('Expected JSON response containing "total"');
+    }
+    if (requests[0].params.startAt !== 0) throw new Error(`Expected startAt=0, got ${requests[0].params.startAt}`);
+    if (requests[0].params.maxResults !== 100) throw new Error(`Expected maxResults=100, got ${requests[0].params.maxResults}`);
+    if (!requests[0].url.includes('QA-T1/teststeps')) throw new Error(`Expected URL containing QA-T1/teststeps, got ${requests[0].url}`);
+
+    // --- Custom pagination params ---
+    requests.length = 0;
+    await cloudHandlers.getTestCaseSteps({ test_case_key: 'QA-T1', start_at: 10, max_results: 50 });
+    if (requests[0].params.startAt !== 10) throw new Error(`Expected startAt=10, got ${requests[0].params.startAt}`);
+    if (requests[0].params.maxResults !== 50) throw new Error(`Expected maxResults=50, got ${requests[0].params.maxResults}`);
+  }
+
   /**
    * Run all tests
    */
@@ -251,6 +323,7 @@ class ZephyrServerTest {
     await this.runTest('Server Startup', () => this.testServerStartup());
     await this.runTest('Tools List', () => this.testToolsList());
     await this.runTest('Schema Contains New Tools', () => this.testSchemaContainsNewTools());
+    await this.runTest('get_test_case_steps Unit Tests', () => this.testGetTestCaseStepsUnit());
 
     // Print summary
     console.log('\n' + '=' .repeat(60));
