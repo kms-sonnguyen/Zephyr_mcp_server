@@ -349,6 +349,14 @@ class ZephyrServerTest {
       if (!(e instanceof McpError)) throw new Error(`Expected McpError for empty step, got: ${e.message}`);
     }
 
+    // Validation: empty steps array
+    try {
+      await cloudHandlers.updateTestCaseSteps({ test_case_key: 'QA-T1', steps: [] });
+      throw new Error('Expected McpError for empty steps array');
+    } catch (e) {
+      if (!(e instanceof McpError)) throw new Error(`Expected McpError for empty steps array, got: ${e.message}`);
+    }
+
     // --- Step validation: testCaseKey + inline fields mutually exclusive ---
     try {
       await cloudHandlers.updateTestCaseSteps({

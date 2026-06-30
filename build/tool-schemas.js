@@ -539,6 +539,7 @@ export const toolSchemas = [
                 steps: {
                     type: 'array',
                     description: 'Steps to write. Each step is either an inline step (description required; testData and expectedResult optional) or a call-to-test reference (testCaseKey only — mutually exclusive with inline fields).',
+                    minItems: 1,
                     items: {
                         type: 'object',
                         properties: {

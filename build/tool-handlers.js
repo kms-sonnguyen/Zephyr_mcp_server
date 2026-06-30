@@ -411,6 +411,9 @@ export class ZephyrToolHandlers {
             throw new McpError(ErrorCode.InvalidRequest, 'update_test_case_steps is only supported on Zephyr Scale Cloud. The Data Center API (v1) does not provide a dedicated /teststeps endpoint.');
         }
         const { test_case_key, steps, mode = 'APPEND' } = args;
+        if (steps.length === 0) {
+            throw new McpError(ErrorCode.InvalidParams, 'steps array must not be empty');
+        }
         // Validate all steps before touching the API
         for (let i = 0; i < steps.length; i++) {
             const step = steps[i];
