@@ -2,6 +2,23 @@
 
 Model Context Protocol server for Zephyr Scale test management, supporting both **Jira Cloud and Data Center**. Create, read, and manage test cases through the Atlassian REST API with **official API-compliant schemas**. Access live test case data, example payloads, and file resources through a unified resource system.
 
+## What's different from the original
+
+This is a fork of [Milo0821/Zephyr_mcp_server](https://github.com/Milo0821/Zephyr_mcp_server) with two additional tools that close a gap in STEP_BY_STEP test case management.
+
+**The gap in the original:** `get_test_case` returns metadata but not step content. `update_test_case_bdd` is the only write path for test content, but it forces BDD/Gherkin format — silently converting STEP_BY_STEP test cases on write. There is no way to read or update existing step-by-step steps in place.
+
+**Added in this fork:**
+
+| Tool | What it does |
+|---|---|
+| `get_test_case_steps` | Read existing STEP_BY_STEP steps for a test case, with `start_at`/`max_results` pagination. Returns the raw Zephyr API response. *(Cloud only)* |
+| `update_test_case_steps` | Append or overwrite STEP_BY_STEP steps without touching metadata or converting format. Supports inline steps (`description`, `testData`, `expectedResult`) and call-to-test references (`testCaseKey`). Defaults to `APPEND` mode to avoid accidental data loss. *(Cloud only)* |
+
+Both tools are Cloud-only — the Zephyr Scale Data Center API v1 does not expose a dedicated `/teststeps` endpoint.
+
+---
+
 ## Features
 
 - ✅ **Jira Cloud & Data Center Support**: Seamlessly connects to both Jira Cloud (using API v2) and self-hosted Data Center instances (using API v1) with automatic configuration detection.
