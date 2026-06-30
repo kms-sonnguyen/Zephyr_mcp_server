@@ -499,4 +499,64 @@ export const toolSchemas = [
       required: ['test_run_key', 'test_case_keys'],
     },
   },
+  {
+    name: 'get_test_case_steps',
+    description: 'Get the test steps for a specific test case (Cloud only). Returns the raw paginated API response including values, total, startAt, and maxResults fields.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        test_case_key: {
+          type: 'string',
+          description: 'Test case key (e.g., QA-T123)',
+        },
+        start_at: {
+          type: 'integer',
+          description: 'Zero-based page offset (default 0)',
+          minimum: 0,
+          default: 0,
+        },
+        max_results: {
+          type: 'integer',
+          description: 'Page size between 1 and 100 (default 100)',
+          minimum: 1,
+          maximum: 100,
+          default: 100,
+        },
+      },
+      required: ['test_case_key'],
+    },
+  },
+  {
+    name: 'update_test_case_steps',
+    description: 'Write STEP_BY_STEP test steps to an existing test case (Cloud only). Use mode APPEND to add steps without destroying existing ones, or OVERWRITE to replace all steps.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        test_case_key: {
+          type: 'string',
+          description: 'Test case key to update (e.g., QA-T123)',
+        },
+        steps: {
+          type: 'array',
+          description: 'Steps to write. Each step is either an inline step (description required; testData and expectedResult optional) or a call-to-test reference (testCaseKey only — mutually exclusive with inline fields).',
+          items: {
+            type: 'object',
+            properties: {
+              description: { type: 'string', description: 'Step action text (required for inline steps)' },
+              testData: { type: 'string', description: 'Input data for the step (optional, inline only)' },
+              expectedResult: { type: 'string', description: 'Expected outcome (optional, inline only)' },
+              testCaseKey: { type: 'string', description: 'Key of another test case to call — mutually exclusive with inline fields' },
+            },
+          },
+        },
+        mode: {
+          type: 'string',
+          enum: ['APPEND', 'OVERWRITE'],
+          description: 'Write mode. APPEND (default) adds to existing steps. OVERWRITE replaces all existing steps.',
+          default: 'APPEND',
+        },
+      },
+      required: ['test_case_key', 'steps'],
+    },
+  },
 ];

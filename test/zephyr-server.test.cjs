@@ -225,6 +225,20 @@ class ZephyrServerTest {
   }
 
   /**
+   * Test schema contains new tools
+   */
+  async testSchemaContainsNewTools() {
+    const fs = require('fs');
+    const content = fs.readFileSync(path.join(__dirname, '../build/tool-schemas.js'), 'utf8');
+    const tools = ['get_test_case_steps', 'update_test_case_steps'];
+    for (const tool of tools) {
+      if (!content.includes(tool)) {
+        throw new Error(`'${tool}' not found in built tool-schemas.js`);
+      }
+    }
+  }
+
+  /**
    * Run all tests
    */
   async runAllTests() {
@@ -236,6 +250,7 @@ class ZephyrServerTest {
     await this.runTest('Environment Configuration', () => this.testEnvironmentConfig());
     await this.runTest('Server Startup', () => this.testServerStartup());
     await this.runTest('Tools List', () => this.testToolsList());
+    await this.runTest('Schema Contains New Tools', () => this.testSchemaContainsNewTools());
 
     // Print summary
     console.log('\n' + '=' .repeat(60));

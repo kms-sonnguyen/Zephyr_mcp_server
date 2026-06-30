@@ -118,3 +118,20 @@ export interface JiraConfig {
   authHeaders: Record<string, string>;
   apiEndpoints: ApiEndpoints;
 }
+
+export interface GetTestCaseStepsArgs {
+  test_case_key: string;
+  start_at?: number;
+  max_results?: number;
+}
+
+export interface UpdateTestCaseStepsArgs {
+  test_case_key: string;
+  steps: Array<{
+    description?: string;
+    testData?: string;
+    expectedResult?: string;
+    testCaseKey?: string;
+  }>;
+  mode?: 'APPEND' | 'OVERWRITE';
+}
