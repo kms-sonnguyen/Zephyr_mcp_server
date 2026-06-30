@@ -7,7 +7,7 @@
 
 ## Background
 
-The MCP server currently exposes `get_test_case` (which returns metadata only — no step content) and `update_test_case_bdd` (the only write path for test content, forces BDD/Gherkin format). There is no way to read existing STEP_BY_STEP steps or update them in place without converting them to BDD.
+The MCP server currently exposes `get_test_case` (which fetches metadata and embeds `testScript` content for BDD/PLAIN_TEXT scripts, but does **not** return STEP_BY_STEP step content — that requires a separate `/teststeps` endpoint) and `update_test_case_bdd` (the only write path for test content, forces BDD/Gherkin format). There is no way to read existing STEP_BY_STEP steps or update them in place without converting them to BDD.
 
 The Zephyr Scale Cloud API v2 provides two endpoints that close this gap:
 
@@ -38,11 +38,13 @@ The step-writing logic (`{ mode, items }` payload shape) is already implemented 
 
 ### Schema
 
-| Parameter | Type | Required | Description |
-|---|---|---|---|
-| `test_case_key` | string | Yes | Test case key (e.g., `QA-T123`) |
-| `start_at` | integer | No | Zero-based offset for pagination (default 0) |
-| `max_results` | integer | No | Page size (default 100) |
+| Parameter | Type | Required | Constraints | Description |
+|---|---|---|---|---|
+| `test_case_key` | string | Yes | — | Test case key (e.g., `QA-T123`) |
+| `start_at` | integer | No | minimum 0, default 0 | Zero-based page offset |
+| `max_results` | integer | No | minimum 1, maximum 100, default 100 | Page size |
+
+**Out-of-range values:** Rejected with `McpError(ErrorCode.InvalidParams, ...)` before the API call is made. Do not clamp silently.
 
 ### Behavior
 
@@ -88,19 +90,25 @@ Raw JSON from the API. Example shape:
 | `steps` | array | Yes | Steps to write (see step shape below) |
 | `mode` | `APPEND` \| `OVERWRITE` | No | Default `APPEND` (safe default — avoids accidental data loss) |
 
-**Step shape (unified — Option A):**
+**Step shape (unified):**
 
-Each step object may include any combination of:
+Each step is an object with these fields:
 - `description` (string, optional) — step action text
 - `testData` (string, optional) — input data for the step
 - `expectedResult` (string, optional) — expected outcome
-- `testCaseKey` (string, optional) — if present, step is a call-to-test reference; other fields ignored
+- `testCaseKey` (string, optional) — marks this step as a call-to-test reference
+
+**Step validation rules (enforced before the API call):**
+
+1. At least one of `testCaseKey` or `description` must be present. An empty step object `{}` is rejected with `McpError(ErrorCode.InvalidParams, ...)`.
+2. If `testCaseKey` is present and any of `description`, `testData`, or `expectedResult` are also present, the call is rejected with `McpError(ErrorCode.InvalidParams, 'Step at index N: testCaseKey and inline fields (description/testData/expectedResult) are mutually exclusive')`. Silent ignore is not acceptable.
+3. If `testCaseKey` is absent, `description` is required. A step with only `testData` or `expectedResult` but no `description` is rejected.
 
 ### Behavior
 
-- **Cloud:** Maps `steps` to the `items` array format the API expects:
-  - If `testCaseKey` present → `{ testCase: { testCaseKey } }`
-  - Otherwise → `{ inline: { description, testData, expectedResult } }`
+- **Cloud:** Validates all steps (rules above), then maps to the `items` array:
+  - `testCaseKey` present → `{ testCase: { testCaseKey } }`
+  - Otherwise → `{ inline: { description, testData: testData ?? null, expectedResult: expectedResult ?? null } }`
   - POSTs `{ mode, items }` to `{apiEndpoints.testcase}/{key}/teststeps`.
   - Returns a success message with the test case key, mode used, and count of steps sent.
 - **Data Center:** Throws `McpError(ErrorCode.InvalidRequest, 'update_test_case_steps is only supported on Zephyr Scale Cloud...')`.
@@ -122,7 +130,8 @@ Text confirmation. Example:
 | `src/tool-schemas.ts` | Append schema entries for both tools |
 | `src/tool-handlers.ts` | Add `getTestCaseSteps()` and `updateTestCaseSteps()` methods to `ZephyrToolHandlers` |
 | `src/index.ts` | Add `case 'get_test_case_steps'` and `case 'update_test_case_steps'` to the switch |
-| `test/zephyr-server.test.cjs` | Add assertions that both tools appear in the registered tool list |
+| `test/zephyr-server.test.cjs` | Unit tests: tool registration, steps-to-items mapping (inline and call-to-test), mode defaulting to APPEND, Data Center rejection, `null` handling for `testData`/`expectedResult`, step validation rules |
+| `README.md` | Add both tools to the MCP Tools reference section |
 
 ---
 
@@ -131,3 +140,4 @@ Text confirmation. Example:
 - The step-to-items mapping logic duplicates code from `upsertTestScriptCloud`. This is intentional — no abstraction until there are three callers.
 - `null` vs omitted fields: pass `testData` and `expectedResult` as `null` when absent (matching existing `upsertTestScriptCloud` behavior), not omitted, so the API overwrites any previously set values in OVERWRITE mode.
 - Error handling follows the existing pattern: catch axios errors, unwrap via `this.formatError(error)`, rethrow as `McpError(ErrorCode.InternalError, ...)`.
+- Step validation runs before the axios call so invalid payloads never reach the API.
