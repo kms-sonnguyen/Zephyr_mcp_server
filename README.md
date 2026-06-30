@@ -104,6 +104,8 @@ The server provides access to various resources through URI schemes:
 - `create_test_case`: Create test cases with STEP_BY_STEP, PLAIN_TEXT, or BDD content.
 - `delete_test_case`: Delete a specific test case.
 - `update_test_case_bdd`: Update an existing test case with BDD content (optionally update the test case name).
+- `get_test_case_steps`: Get the STEP_BY_STEP test steps for a test case, with pagination. *(Cloud only)*
+- `update_test_case_steps`: Append or overwrite STEP_BY_STEP test steps on an existing test case. Supports inline steps and call-to-test references. *(Cloud only)*
 
 ### Test Run Management
 - `create_test_run`: Create a new test run.
