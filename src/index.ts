@@ -95,6 +95,8 @@ class ZephyrServer {
             return await this.toolHandlers.addTestCasesToRun(args as any);
           case 'get_test_case_steps':
             return await this.toolHandlers.getTestCaseSteps(args as any);
+          case 'update_test_case_steps':
+            return await this.toolHandlers.updateTestCaseSteps(args as any);
           case 'list_executions_by_cycle':
             return await this.toolHandlers.listExecutionsByCycle(args as any);
           default:

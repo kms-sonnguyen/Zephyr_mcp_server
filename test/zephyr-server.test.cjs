@@ -310,6 +310,176 @@ class ZephyrServerTest {
     if (requests[0].params.maxResults !== 50) throw new Error(`Expected maxResults=50, got ${requests[0].params.maxResults}`);
   }
 
+  async testUpdateTestCaseStepsUnit() {
+    const { ZephyrToolHandlers } = await import('../build/tool-handlers.js');
+    const { McpError } = await import('@modelcontextprotocol/sdk/types.js');
+
+    // --- DC rejection ---
+    const dcConfig = {
+      type: 'datacenter',
+      apiEndpoints: { testcase: 'http://dc.example.com/rest/atm/1.0/testcase' }
+    };
+    const dcHandlers = new ZephyrToolHandlers({}, dcConfig);
+    try {
+      await dcHandlers.updateTestCaseSteps({ test_case_key: 'QA-T1', steps: [{ description: 'step' }] });
+      throw new Error('Expected McpError for datacenter');
+    } catch (e) {
+      if (!(e instanceof McpError)) throw new Error(`Expected McpError for DC rejection, got: ${e.message}`);
+    }
+
+    // --- Cloud handler setup ---
+    const cloudConfig = {
+      type: 'cloud',
+      apiEndpoints: { testcase: 'https://api.zephyrscale.smartbear.com/v2/testcases' }
+    };
+    const postedBodies = [];
+    const mockAxios = {
+      post: async (url, body) => {
+        postedBodies.push({ url, body });
+        return { data: {} };
+      }
+    };
+    const cloudHandlers = new ZephyrToolHandlers(mockAxios, cloudConfig);
+
+    // --- Step validation: empty step ---
+    try {
+      await cloudHandlers.updateTestCaseSteps({ test_case_key: 'QA-T1', steps: [{}] });
+      throw new Error('Expected McpError for empty step');
+    } catch (e) {
+      if (!(e instanceof McpError)) throw new Error(`Expected McpError for empty step, got: ${e.message}`);
+    }
+
+    // --- Step validation: testCaseKey + inline fields mutually exclusive ---
+    try {
+      await cloudHandlers.updateTestCaseSteps({
+        test_case_key: 'QA-T1',
+        steps: [{ testCaseKey: 'QA-T99', description: 'step' }]
+      });
+      throw new Error('Expected McpError for testCaseKey + description');
+    } catch (e) {
+      if (!(e instanceof McpError)) throw new Error(`Expected McpError for mutual exclusion, got: ${e.message}`);
+    }
+
+    // testCaseKey + testData also rejected
+    try {
+      await cloudHandlers.updateTestCaseSteps({
+        test_case_key: 'QA-T1',
+        steps: [{ testCaseKey: 'QA-T99', testData: 'data' }]
+      });
+      throw new Error('Expected McpError for testCaseKey + testData');
+    } catch (e) {
+      if (!(e instanceof McpError)) throw new Error(`Expected McpError for testCaseKey + testData, got: ${e.message}`);
+    }
+
+    // --- Step validation: inline step without description ---
+    try {
+      await cloudHandlers.updateTestCaseSteps({
+        test_case_key: 'QA-T1',
+        steps: [{ testData: 'some data' }]
+      });
+      throw new Error('Expected McpError for inline step without description');
+    } catch (e) {
+      if (!(e instanceof McpError)) throw new Error(`Expected McpError for missing description, got: ${e.message}`);
+    }
+
+    // --- Mode defaults to APPEND ---
+    postedBodies.length = 0;
+    const result = await cloudHandlers.updateTestCaseSteps({
+      test_case_key: 'QA-T1',
+      steps: [{ description: 'Navigate to page', expectedResult: 'Page loads' }]
+    });
+    if (postedBodies[0].body.mode !== 'APPEND') {
+      throw new Error(`Expected default mode APPEND, got ${postedBodies[0].body.mode}`);
+    }
+    if (!result.content[0].text.includes('APPEND')) {
+      throw new Error('Expected APPEND in success message');
+    }
+    if (!result.content[0].text.includes('QA-T1')) {
+      throw new Error('Expected test case key in success message');
+    }
+
+    // --- Inline step mapping: null for absent testData and expectedResult ---
+    postedBodies.length = 0;
+    await cloudHandlers.updateTestCaseSteps({
+      test_case_key: 'QA-T1',
+      steps: [{ description: 'Step with no data' }]
+    });
+    const inlineItem = postedBodies[0].body.items[0];
+    if (!inlineItem.inline) throw new Error('Expected inline item');
+    if (inlineItem.inline.description !== 'Step with no data') throw new Error('Wrong description');
+    if (inlineItem.inline.testData !== null) throw new Error(`Expected testData=null, got ${inlineItem.inline.testData}`);
+    if (inlineItem.inline.expectedResult !== null) throw new Error(`Expected expectedResult=null, got ${inlineItem.inline.expectedResult}`);
+
+    // --- Inline step with all fields ---
+    postedBodies.length = 0;
+    await cloudHandlers.updateTestCaseSteps({
+      test_case_key: 'QA-T1',
+      steps: [{ description: 'Enter credentials', testData: 'user@example.com', expectedResult: 'Logged in' }]
+    });
+    const fullItem = postedBodies[0].body.items[0];
+    if (!fullItem.inline) throw new Error('Expected inline item for full step');
+    if (fullItem.inline.testData !== 'user@example.com') throw new Error('Wrong testData');
+    if (fullItem.inline.expectedResult !== 'Logged in') throw new Error('Wrong expectedResult');
+
+    // --- Call-to-test step mapping ---
+    postedBodies.length = 0;
+    await cloudHandlers.updateTestCaseSteps({
+      test_case_key: 'QA-T1',
+      steps: [{ testCaseKey: 'QA-T99' }]
+    });
+    const ctItem = postedBodies[0].body.items[0];
+    if (!ctItem.testCase) throw new Error('Expected testCase item for call-to-test step');
+    if (ctItem.testCase.testCaseKey !== 'QA-T99') throw new Error(`Expected testCaseKey=QA-T99, got ${ctItem.testCase.testCaseKey}`);
+    if (ctItem.inline) throw new Error('call-to-test item should not have inline field');
+
+    // --- Mixed step array (inline + call-to-test) ---
+    postedBodies.length = 0;
+    await cloudHandlers.updateTestCaseSteps({
+      test_case_key: 'QA-T1',
+      steps: [
+        { description: 'First inline step' },
+        { testCaseKey: 'QA-T99' },
+        { description: 'Last inline step', expectedResult: 'Done' }
+      ]
+    });
+    const items = postedBodies[0].body.items;
+    if (items.length !== 3) throw new Error(`Expected 3 items, got ${items.length}`);
+    if (!items[0].inline) throw new Error('Item 0 should be inline');
+    if (!items[1].testCase) throw new Error('Item 1 should be testCase');
+    if (!items[2].inline) throw new Error('Item 2 should be inline');
+
+    // --- OVERWRITE mode ---
+    postedBodies.length = 0;
+    await cloudHandlers.updateTestCaseSteps({
+      test_case_key: 'QA-T1',
+      steps: [{ description: 'Replace all' }],
+      mode: 'OVERWRITE'
+    });
+    if (postedBodies[0].body.mode !== 'OVERWRITE') {
+      throw new Error(`Expected mode=OVERWRITE, got ${postedBodies[0].body.mode}`);
+    }
+
+    // --- URL correctness ---
+    postedBodies.length = 0;
+    await cloudHandlers.updateTestCaseSteps({
+      test_case_key: 'QA-T123',
+      steps: [{ description: 'step' }]
+    });
+    if (!postedBodies[0].url.includes('QA-T123/teststeps')) {
+      throw new Error(`Expected URL containing QA-T123/teststeps, got ${postedBodies[0].url}`);
+    }
+
+    // --- Step count in success message ---
+    postedBodies.length = 0;
+    const r2 = await cloudHandlers.updateTestCaseSteps({
+      test_case_key: 'QA-T1',
+      steps: [{ description: 'a' }, { description: 'b' }, { description: 'c' }]
+    });
+    if (!r2.content[0].text.includes('3')) {
+      throw new Error(`Expected step count 3 in message: ${r2.content[0].text}`);
+    }
+  }
+
   /**
    * Run all tests
    */
@@ -324,6 +494,7 @@ class ZephyrServerTest {
     await this.runTest('Tools List', () => this.testToolsList());
     await this.runTest('Schema Contains New Tools', () => this.testSchemaContainsNewTools());
     await this.runTest('get_test_case_steps Unit Tests', () => this.testGetTestCaseStepsUnit());
+    await this.runTest('update_test_case_steps Unit Tests', () => this.testUpdateTestCaseStepsUnit());
 
     // Print summary
     console.log('\n' + '=' .repeat(60));

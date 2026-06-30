@@ -449,6 +449,71 @@ export class ZephyrToolHandlers {
     }
   }
 
+  async updateTestCaseSteps(args: UpdateTestCaseStepsArgs) {
+    if (this.jiraConfig.type === 'datacenter') {
+      throw new McpError(
+        ErrorCode.InvalidRequest,
+        'update_test_case_steps is only supported on Zephyr Scale Cloud. The Data Center API (v1) does not provide a dedicated /teststeps endpoint.'
+      );
+    }
+
+    const { test_case_key, steps, mode = 'APPEND' } = args;
+
+    // Validate all steps before touching the API
+    for (let i = 0; i < steps.length; i++) {
+      const step = steps[i];
+      const hasInlineFields = step.description !== undefined || step.testData !== undefined || step.expectedResult !== undefined;
+      const hasCallToTest = step.testCaseKey !== undefined;
+
+      if (!hasInlineFields && !hasCallToTest) {
+        throw new McpError(
+          ErrorCode.InvalidParams,
+          `Step at index ${i}: at least one of description or testCaseKey is required`
+        );
+      }
+      if (hasCallToTest && hasInlineFields) {
+        throw new McpError(
+          ErrorCode.InvalidParams,
+          `Step at index ${i}: testCaseKey and inline fields (description/testData/expectedResult) are mutually exclusive`
+        );
+      }
+      if (!hasCallToTest && step.description === undefined) {
+        throw new McpError(
+          ErrorCode.InvalidParams,
+          `Step at index ${i}: description is required for inline steps`
+        );
+      }
+    }
+
+    const items = steps.map((step) => {
+      if (step.testCaseKey) {
+        return { testCase: { testCaseKey: step.testCaseKey } };
+      }
+      return {
+        inline: {
+          description: step.description || '',
+          testData: step.testData ?? null,
+          expectedResult: step.expectedResult ?? null,
+        },
+      };
+    });
+
+    try {
+      await this.axiosInstance.post(
+        `${this.jiraConfig.apiEndpoints.testcase}/${test_case_key}/teststeps`,
+        { mode, items }
+      );
+      return {
+        content: [{
+          type: 'text',
+          text: `✅ Updated ${test_case_key} test steps successfully (mode: ${mode}, ${steps.length} step${steps.length === 1 ? '' : 's'} sent)`,
+        }],
+      };
+    } catch (error) {
+      throw new McpError(ErrorCode.InternalError, `Failed to update test case steps: ${this.formatError(error)}`);
+    }
+  }
+
   async createFolder(args: FolderArgs) {
     if (this.jiraConfig.type === 'cloud') {
       return this.createFolderCloud(args);
