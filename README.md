@@ -4,9 +4,9 @@ Model Context Protocol server for Zephyr Scale test management, supporting both 
 
 ## What's different from the original
 
-This is a fork of [Milo0821/Zephyr_mcp_server](https://github.com/Milo0821/Zephyr_mcp_server) with two additional tools that close a gap in STEP_BY_STEP test case management.
+This is a fork of [Milo0821/Zephyr_mcp_server](https://github.com/Milo0821/Zephyr_mcp_server) with additional tools that close gaps in STEP_BY_STEP test case management and test case search.
 
-**The gap in the original:** `get_test_case` returns metadata but not step content. `update_test_case_bdd` is the only write path for test content, but it forces BDD/Gherkin format — silently converting STEP_BY_STEP test cases on write. There is no way to read or update existing step-by-step steps in place.
+**The gap in the original:** `get_test_case` returns metadata but not step content. `update_test_case_bdd` is the only write path for test content, but it forces BDD/Gherkin format — silently converting STEP_BY_STEP test cases on write. There is no way to read or update existing step-by-step steps in place. Separately, the only search tool (`search_test_cases_by_folder`) requires an exact folder path — there's no way to find a test case by name.
 
 **Added in this fork:**
 
@@ -14,8 +14,9 @@ This is a fork of [Milo0821/Zephyr_mcp_server](https://github.com/Milo0821/Zephy
 |---|---|
 | `get_test_case_steps` | Read existing STEP_BY_STEP steps for a test case, with `start_at`/`max_results` pagination. Returns the raw Zephyr API response. *(Cloud only)* |
 | `update_test_case_steps` | Append or overwrite STEP_BY_STEP steps without touching metadata or converting format. Supports inline steps (`description`, `testData`, `expectedResult`) and call-to-test references (`testCaseKey`). Defaults to `APPEND` mode to avoid accidental data loss. *(Cloud only)* |
+| `search_test_cases` | Search for test cases by a case-insensitive name substring within a project, optionally scoped to an exact folder. Neither Cloud nor Data Center offer server-side name search, so this fetches/queries then filters client-side, capped at 5000 scanned test cases per call. |
 
-Both tools are Cloud-only — the Zephyr Scale Data Center API v1 does not expose a dedicated `/teststeps` endpoint.
+`get_test_case_steps` and `update_test_case_steps` are Cloud-only — the Zephyr Scale Data Center API v1 does not expose a dedicated `/teststeps` endpoint. `search_test_cases` works on both Cloud and Data Center.
 
 ---
 
