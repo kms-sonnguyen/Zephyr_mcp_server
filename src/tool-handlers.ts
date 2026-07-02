@@ -1174,6 +1174,9 @@ export class ZephyrToolHandlers {
 
     if (this.jiraConfig.type !== 'cloud') {
       try {
+        // Single request, not paginated — if the DC search endpoint caps results below
+        // SCAN_CAP server-side, testCases.length will be under 5000 and truncated stays
+        // false even though matches beyond that server-side cap were never scanned.
         const SCAN_CAP = 5000;
         const escapedProjectKey = project_key.replace(/"/g, '\\"');
         const queryParts: string[] = [`projectKey = "${escapedProjectKey}"`];
