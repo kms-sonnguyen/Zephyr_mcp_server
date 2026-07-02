@@ -752,6 +752,17 @@ class ZephyrServerTest {
     if (limitedPayload.totalCount !== 1) throw new Error(`Expected totalCount=1 with max_results=1, got ${limitedPayload.totalCount}`);
   }
 
+  async testIndexDispatchesSearchTestCases() {
+    const fs = require('fs');
+    const content = fs.readFileSync(path.join(__dirname, '../build/index.js'), 'utf8');
+    if (!content.includes(`case 'search_test_cases':`)) {
+      throw new Error("build/index.js does not dispatch 'search_test_cases'");
+    }
+    if (!content.includes('searchTestCases(args')) {
+      throw new Error('build/index.js does not call toolHandlers.searchTestCases(...)');
+    }
+  }
+
   /**
    * Run all tests
    */
@@ -769,6 +780,7 @@ class ZephyrServerTest {
     await this.runTest('update_test_case_steps Unit Tests', () => this.testUpdateTestCaseStepsUnit());
     await this.runTest('search_test_cases Cloud Unit Tests', () => this.testSearchTestCasesCloudUnit());
     await this.runTest('search_test_cases Data Center Unit Tests', () => this.testSearchTestCasesDataCenterUnit());
+    await this.runTest('search_test_cases Index Dispatch', () => this.testIndexDispatchesSearchTestCases());
 
     // Print summary
     console.log('\n' + '=' .repeat(60));

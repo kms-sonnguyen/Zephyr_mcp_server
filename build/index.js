@@ -69,6 +69,8 @@ class ZephyrServer {
                         return await this.toolHandlers.getTestExecution(args);
                     case 'search_test_cases_by_folder':
                         return await this.toolHandlers.searchTestCasesByFolder(args);
+                    case 'search_test_cases':
+                        return await this.toolHandlers.searchTestCases(args);
                     case 'search_test_runs':
                         return await this.toolHandlers.searchTestRuns(args);
                     case 'add_test_cases_to_run':
