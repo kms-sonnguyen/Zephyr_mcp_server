@@ -545,11 +545,47 @@ class ZephyrServerTest {
     if (requests[0].params.projectKey !== 'PROJ') throw new Error(`Expected projectKey=PROJ, got ${requests[0].params.projectKey}`);
     if ('folderId' in requests[0].params) throw new Error('Expected no folderId param when folder_path omitted');
 
-    // --- max_results limits matches, not raw fetch ---
-    const limitedResult = await basicHandlers.searchTestCases({ project_key: 'PROJ', name_contains: 'login', max_results: 1 });
+    // --- max_results limits matches, not raw fetch (multi-page scenario) ---
+    // This verifies the loop continues pagination even when max_results is reached
+    const multiPageRequests = [];
+    const multiPageAxios = {
+      get: async (url, config) => {
+        multiPageRequests.push({ url, params: config && config.params });
+        const startAt = config.params.startAt;
+        const pageSize = config.params.maxResults;
+
+        // Page 1: exactly 1000 items (matching pageSize), contains 2 matches for "login"
+        if (startAt === 0) {
+          const page = [];
+          page.push({ key: 'PROJ-T1-0', name: 'First Login Case' });
+          page.push({ key: 'PROJ-T1-1', name: 'Non-matching' });
+          page.push({ key: 'PROJ-T1-2', name: 'Admin LOGIN Check' });
+          for (let i = 3; i < 1000; i++) {
+            page.push({ key: `PROJ-T1-${i}`, name: `Non-matching item ${i}` });
+          }
+          return { data: { values: page, isLast: false } };
+        }
+
+        // Page 2: 500 items, contains 1 more match for "login"
+        if (startAt === 1000) {
+          const page = [];
+          page.push({ key: 'PROJ-T2-0', name: 'Login Reset Flow' });
+          for (let i = 1; i < 500; i++) {
+            page.push({ key: `PROJ-T2-${i}`, name: `Non-matching item ${i}` });
+          }
+          return { data: { values: page, isLast: true } };
+        }
+
+        throw new Error(`Unexpected startAt: ${startAt}`);
+      },
+    };
+
+    const multiPageHandlers = new ZephyrToolHandlers(multiPageAxios, cloudConfig);
+    const limitedResult = await multiPageHandlers.searchTestCases({ project_key: 'PROJ', name_contains: 'login', max_results: 1 });
     const limitedPayload = JSON.parse(limitedResult.content[0].text.split('\n').slice(1).join('\n'));
     if (limitedPayload.totalCount !== 1) throw new Error(`Expected totalCount=1 with max_results=1, got ${limitedPayload.totalCount}`);
-    if (limitedPayload.totalScanned !== 3) throw new Error(`Expected totalScanned still 3 with max_results=1, got ${limitedPayload.totalScanned}`);
+    if (limitedPayload.totalScanned !== 1500) throw new Error(`Expected totalScanned=1500 (both pages), got ${limitedPayload.totalScanned}`);
+    if (multiPageRequests.length !== 2) throw new Error(`Expected 2 page requests (proving loop continued despite max_results), got ${multiPageRequests.length}`);
 
     // --- Folder scoping resolves folderId and passes it through ---
     const folderRequests = [];
