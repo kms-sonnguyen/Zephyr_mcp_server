@@ -711,22 +711,40 @@ class ZephyrServerTest {
     if (arrayPayload.testCaseKeys[0] !== 'PROJ-T5') throw new Error('Expected PROJ-T5 from plain-array response shape');
 
     // --- Truncated when result count hits the scan cap ---
+    // Mix matching and non-matching items so testCases.length != matches.length
+    // This catches regressions where implementation uses matches.length instead of testCases.length
     const cappedResults = [];
     for (let i = 0; i < 5000; i++) {
-      cappedResults.push({ key: `PROJ-T${i}`, name: `Item ${i}` });
+      // 3000 items match "item", 2000 items don't match
+      cappedResults.push({
+        key: `PROJ-T${i}`,
+        name: i < 3000 ? `Item ${i}` : `Other ${i}`
+      });
     }
     const cappedAxios = { get: async () => ({ data: { results: cappedResults } }) };
     const cappedHandlers = new ZephyrToolHandlers(cappedAxios, dcConfig);
-    const cappedResult = await cappedHandlers.searchTestCases({ project_key: 'PROJ', name_contains: 'item' });
+    const cappedResult = await cappedHandlers.searchTestCases({ project_key: 'PROJ', name_contains: 'item', max_results: 5000 });
     const cappedPayload = JSON.parse(cappedResult.content[0].text.split('\n').slice(1).join('\n'));
-    if (cappedPayload.truncated !== true) throw new Error(`Expected truncated=true at 5000 results, got ${cappedPayload.truncated}`);
+    if (cappedPayload.truncated !== true) throw new Error(`Expected truncated=true at 5000 scanned, got ${cappedPayload.truncated}`);
+    if (cappedPayload.totalScanned !== 5000) throw new Error(`Expected totalScanned=5000 (got ${cappedPayload.totalScanned}), truncated=${cappedPayload.truncated}, totalCount=${cappedPayload.totalCount}`);
+    if (cappedPayload.totalCount !== 3000) throw new Error(`Expected totalCount=3000 (filtered matches), got ${cappedPayload.totalCount} (scanned=${cappedPayload.totalScanned}, truncated=${cappedPayload.truncated})`);
 
     // --- Not truncated below the cap ---
-    const smallAxios = { get: async () => ({ data: { results: [{ key: 'PROJ-T1', name: 'Item 1' }] } }) };
+    // Mix matching and non-matching to ensure flag is based on scanned count, not match count
+    const smallResults = [];
+    for (let i = 0; i < 100; i++) {
+      smallResults.push({
+        key: `PROJ-T${i}`,
+        name: i < 50 ? `Item ${i}` : `Other ${i}`
+      });
+    }
+    const smallAxios = { get: async () => ({ data: { results: smallResults } }) };
     const smallHandlers = new ZephyrToolHandlers(smallAxios, dcConfig);
     const smallResult = await smallHandlers.searchTestCases({ project_key: 'PROJ', name_contains: 'item' });
     const smallPayload = JSON.parse(smallResult.content[0].text.split('\n').slice(1).join('\n'));
     if (smallPayload.truncated !== false) throw new Error(`Expected truncated=false below cap, got ${smallPayload.truncated}`);
+    if (smallPayload.totalScanned !== 100) throw new Error(`Expected totalScanned=100, got ${smallPayload.totalScanned}`);
+    if (smallPayload.totalCount !== 50) throw new Error(`Expected totalCount=50 (filtered matches), got ${smallPayload.totalCount}`);
 
     // --- max_results limits matches ---
     const limitedResult = await basicHandlers.searchTestCases({ project_key: 'PROJ', name_contains: 'login', max_results: 1 });
