@@ -77,6 +77,13 @@ export interface SearchTestCasesArgs {
   max_results?: number;
 }
 
+export interface SearchTestCasesByNameArgs {
+  project_key: string;
+  name_contains: string;
+  folder_path?: string;
+  max_results?: number;
+}
+
 export interface AddTestCasesToRunArgs {
   test_run_key: string;
   test_case_keys: string[];

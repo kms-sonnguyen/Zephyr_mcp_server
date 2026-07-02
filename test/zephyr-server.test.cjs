@@ -230,7 +230,7 @@ class ZephyrServerTest {
   async testSchemaContainsNewTools() {
     const fs = require('fs');
     const content = fs.readFileSync(path.join(__dirname, '../build/tool-schemas.js'), 'utf8');
-    const tools = ['get_test_case_steps', 'update_test_case_steps'];
+    const tools = ['get_test_case_steps', 'update_test_case_steps', 'search_test_cases'];
     for (const tool of tools) {
       if (!content.includes(tool)) {
         throw new Error(`'${tool}' not found in built tool-schemas.js`);

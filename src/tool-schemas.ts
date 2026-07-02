@@ -376,6 +376,34 @@ export const toolSchemas = [
     },
   },
   {
+    name: 'search_test_cases',
+    description: 'Search for test cases by name (case-insensitive substring match) within a project, optionally scoped to an exact folder. Neither Cloud nor Data Center support server-side name search, so this paginates/queries then filters client-side, capped at 5000 scanned test cases per call — check "truncated" in the response if you need exhaustive results on a very large project.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        project_key: {
+          type: 'string',
+          description: 'Project key (e.g., PROJ)',
+        },
+        name_contains: {
+          type: 'string',
+          description: 'Case-insensitive substring to match against test case names (e.g., "login")',
+          minLength: 1,
+        },
+        folder_path: {
+          type: 'string',
+          description: 'Optional exact folder path to scope the search to (e.g., /ProjectName/SubFolder). Does not include subfolders.',
+        },
+        max_results: {
+          type: 'number',
+          description: 'Maximum number of matching test cases to return (optional, default 100)',
+          default: 100,
+        },
+      },
+      required: ['project_key', 'name_contains'],
+    },
+  },
+  {
     name: 'search_test_runs',
     description: 'Search for test runs using a query. Supports filtering by projectKey and/or folder path. On Cloud, only returns cycles in the exact folder (not sub-folders). Use folder_id for direct numeric ID lookup (skips path resolution).',
     inputSchema: {
