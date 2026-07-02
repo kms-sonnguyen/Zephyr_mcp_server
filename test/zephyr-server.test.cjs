@@ -646,6 +646,94 @@ class ZephyrServerTest {
     if (capRequests.length !== 5) throw new Error(`Expected exactly 5 page requests (5000/1000), got ${capRequests.length}`);
   }
 
+  async testSearchTestCasesDataCenterUnit() {
+    const { ZephyrToolHandlers } = await import('../build/tool-handlers.js');
+
+    const dcConfig = {
+      type: 'datacenter',
+      apiEndpoints: {
+        testcase: '/rest/atm/1.0/testcase',
+        folder: '/rest/atm/1.0/folder',
+        search: '/rest/atm/1.0/testcase/search',
+      },
+    };
+
+    // --- Query building: projectKey only ---
+    const requests = [];
+    const basicAxios = {
+      get: async (url, config) => {
+        requests.push({ url, params: config && config.params });
+        return {
+          data: {
+            results: [
+              { key: 'PROJ-T1', name: 'User Login Flow' },
+              { key: 'PROJ-T2', name: 'Password Reset' },
+              { key: 'PROJ-T3', name: 'Admin LOGIN Page' },
+            ],
+          },
+        };
+      },
+    };
+    const basicHandlers = new ZephyrToolHandlers(basicAxios, dcConfig);
+    const basicResult = await basicHandlers.searchTestCases({ project_key: 'PROJ', name_contains: 'login' });
+    const basicPayload = JSON.parse(basicResult.content[0].text.split('\n').slice(1).join('\n'));
+    if (JSON.stringify(basicPayload.testCaseKeys) !== JSON.stringify(['PROJ-T1', 'PROJ-T3'])) {
+      throw new Error(`Expected matches PROJ-T1,PROJ-T3, got ${JSON.stringify(basicPayload.testCaseKeys)}`);
+    }
+    if (basicPayload.totalScanned !== 3) throw new Error(`Expected totalScanned=3, got ${basicPayload.totalScanned}`);
+    if (requests[0].url !== '/rest/atm/1.0/testcase/search') throw new Error(`Expected DC search endpoint, got ${requests[0].url}`);
+    if (requests[0].params.query !== 'projectKey = "PROJ"') {
+      throw new Error(`Expected query 'projectKey = "PROJ"' with no name/folder clause, got: ${requests[0].params.query}`);
+    }
+
+    // --- Query building: projectKey + folder, with quote escaping ---
+    const folderRequests = [];
+    const folderAxios = {
+      get: async (url, config) => {
+        folderRequests.push({ url, params: config && config.params });
+        return { data: { results: [] } };
+      },
+    };
+    const folderHandlers = new ZephyrToolHandlers(folderAxios, dcConfig);
+    await folderHandlers.searchTestCases({ project_key: 'PROJ"X', name_contains: 'login', folder_path: '/Auth"Sub' });
+    const expectedQuery = 'projectKey = "PROJ\\"X" AND folder = "/Auth\\"Sub"';
+    if (folderRequests[0].params.query !== expectedQuery) {
+      throw new Error(`Expected escaped query '${expectedQuery}', got: ${folderRequests[0].params.query}`);
+    }
+
+    // --- Response shape: plain array ---
+    const arrayAxios = {
+      get: async () => ({ data: [{ key: 'PROJ-T5', name: 'Login via array shape' }] }),
+    };
+    const arrayHandlers = new ZephyrToolHandlers(arrayAxios, dcConfig);
+    const arrayResult = await arrayHandlers.searchTestCases({ project_key: 'PROJ', name_contains: 'login' });
+    const arrayPayload = JSON.parse(arrayResult.content[0].text.split('\n').slice(1).join('\n'));
+    if (arrayPayload.testCaseKeys[0] !== 'PROJ-T5') throw new Error('Expected PROJ-T5 from plain-array response shape');
+
+    // --- Truncated when result count hits the scan cap ---
+    const cappedResults = [];
+    for (let i = 0; i < 5000; i++) {
+      cappedResults.push({ key: `PROJ-T${i}`, name: `Item ${i}` });
+    }
+    const cappedAxios = { get: async () => ({ data: { results: cappedResults } }) };
+    const cappedHandlers = new ZephyrToolHandlers(cappedAxios, dcConfig);
+    const cappedResult = await cappedHandlers.searchTestCases({ project_key: 'PROJ', name_contains: 'item' });
+    const cappedPayload = JSON.parse(cappedResult.content[0].text.split('\n').slice(1).join('\n'));
+    if (cappedPayload.truncated !== true) throw new Error(`Expected truncated=true at 5000 results, got ${cappedPayload.truncated}`);
+
+    // --- Not truncated below the cap ---
+    const smallAxios = { get: async () => ({ data: { results: [{ key: 'PROJ-T1', name: 'Item 1' }] } }) };
+    const smallHandlers = new ZephyrToolHandlers(smallAxios, dcConfig);
+    const smallResult = await smallHandlers.searchTestCases({ project_key: 'PROJ', name_contains: 'item' });
+    const smallPayload = JSON.parse(smallResult.content[0].text.split('\n').slice(1).join('\n'));
+    if (smallPayload.truncated !== false) throw new Error(`Expected truncated=false below cap, got ${smallPayload.truncated}`);
+
+    // --- max_results limits matches ---
+    const limitedResult = await basicHandlers.searchTestCases({ project_key: 'PROJ', name_contains: 'login', max_results: 1 });
+    const limitedPayload = JSON.parse(limitedResult.content[0].text.split('\n').slice(1).join('\n'));
+    if (limitedPayload.totalCount !== 1) throw new Error(`Expected totalCount=1 with max_results=1, got ${limitedPayload.totalCount}`);
+  }
+
   /**
    * Run all tests
    */
@@ -662,6 +750,7 @@ class ZephyrServerTest {
     await this.runTest('get_test_case_steps Unit Tests', () => this.testGetTestCaseStepsUnit());
     await this.runTest('update_test_case_steps Unit Tests', () => this.testUpdateTestCaseStepsUnit());
     await this.runTest('search_test_cases Cloud Unit Tests', () => this.testSearchTestCasesCloudUnit());
+    await this.runTest('search_test_cases Data Center Unit Tests', () => this.testSearchTestCasesDataCenterUnit());
 
     // Print summary
     console.log('\n' + '=' .repeat(60));

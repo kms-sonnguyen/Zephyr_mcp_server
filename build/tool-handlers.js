@@ -1050,7 +1050,49 @@ export class ZephyrToolHandlers {
         }
         const needle = name_contains.trim().toLowerCase();
         if (this.jiraConfig.type !== 'cloud') {
-            throw new McpError(ErrorCode.InvalidRequest, 'Data Center support for search_test_cases is not yet implemented');
+            try {
+                const SCAN_CAP = 5000;
+                const escapedProjectKey = project_key.replace(/"/g, '\\"');
+                const queryParts = [`projectKey = "${escapedProjectKey}"`];
+                if (folder_path) {
+                    const escapedFolderPath = folder_path.replace(/"/g, '\\"');
+                    queryParts.push(`folder = "${escapedFolderPath}"`);
+                }
+                const query = queryParts.join(' AND ');
+                const response = await this.axiosInstance.get(this.jiraConfig.apiEndpoints.search, {
+                    params: { query, maxResults: SCAN_CAP },
+                });
+                let testCases = [];
+                if (Array.isArray(response.data)) {
+                    testCases = response.data;
+                }
+                else if (response.data?.values && Array.isArray(response.data.values)) {
+                    testCases = response.data.values;
+                }
+                else if (response.data?.results && Array.isArray(response.data.results)) {
+                    testCases = response.data.results;
+                }
+                const truncated = testCases.length >= SCAN_CAP;
+                const matches = testCases.filter((tc) => typeof tc.name === 'string' && tc.name.toLowerCase().includes(needle));
+                const limited = matches.slice(0, max_results);
+                return {
+                    content: [{
+                            type: 'text',
+                            text: `✅ Found ${limited.length} test case(s) matching "${name_contains}" in project ${project_key}:\n${JSON.stringify({
+                                project_key,
+                                name_contains,
+                                folder: folder_path ?? null,
+                                testCaseKeys: limited.map((tc) => tc.key),
+                                totalCount: limited.length,
+                                totalScanned: testCases.length,
+                                truncated,
+                            }, null, 2)}`,
+                        }],
+                };
+            }
+            catch (error) {
+                throw new McpError(ErrorCode.InternalError, `Failed to search test cases: ${this.formatError(error)}`);
+            }
         }
         try {
             let folderId = null;
