@@ -7,6 +7,7 @@ import {
   FolderArgs,
   TestRunArgs,
   SearchTestCasesArgs,
+  SearchTestCasesByNameArgs,
   AddTestCasesToRunArgs,
   SearchTestRunsArgs,
   GetTestExecutionArgs,
@@ -1160,6 +1161,91 @@ export class ZephyrToolHandlers {
       };
     } catch (error) {
       throw new McpError(ErrorCode.InternalError, `Failed to search test cases by folder: ${this.formatError(error)}`);
+    }
+  }
+
+  async searchTestCases(args: SearchTestCasesByNameArgs) {
+    const { project_key, name_contains, folder_path, max_results = 100 } = args;
+
+    if (typeof name_contains !== 'string' || name_contains.trim().length === 0) {
+      throw new McpError(ErrorCode.InvalidParams, 'name_contains must be a non-empty string');
+    }
+    const needle = name_contains.trim().toLowerCase();
+
+    if (this.jiraConfig.type !== 'cloud') {
+      throw new McpError(ErrorCode.InvalidRequest, 'Data Center support for search_test_cases is not yet implemented');
+    }
+
+    try {
+      let folderId: number | null = null;
+      if (folder_path) {
+        folderId = await resolveFolderIdByPath(
+          this.axiosInstance, project_key, folder_path, 'TEST_CASE'
+        );
+        if (folderId === null) {
+          return {
+            content: [{
+              type: 'text',
+              text: `⚠️ Folder not found: "${folder_path}" in project ${project_key}. No test cases returned.`,
+            }],
+          };
+        }
+      }
+
+      const SCAN_CAP = 5000;
+      const pageSize = 1000;
+      const allTestCases: any[] = [];
+      let startAt = 0;
+      let isLast = false;
+      let truncated = false;
+
+      while (!isLast) {
+        const response = await this.axiosInstance.get(this.jiraConfig.apiEndpoints.testcase, {
+          params: {
+            projectKey: project_key,
+            ...(folderId !== null ? { folderId } : {}),
+            maxResults: pageSize,
+            startAt,
+          },
+        });
+
+        const page = Array.isArray(response.data)
+          ? response.data
+          : response.data?.values ?? [];
+
+        allTestCases.push(...page);
+
+        isLast = response.data?.isLast === true || page.length < pageSize;
+        startAt += page.length;
+
+        if (!isLast && allTestCases.length >= SCAN_CAP) {
+          truncated = true;
+          break;
+        }
+      }
+
+      const matches = allTestCases.filter(
+        (tc: any) => typeof tc.name === 'string' && tc.name.toLowerCase().includes(needle)
+      );
+      const limited = matches.slice(0, max_results);
+
+      return {
+        content: [{
+          type: 'text',
+          text: `✅ Found ${limited.length} test case(s) matching "${name_contains}" in project ${project_key}:\n${JSON.stringify({
+            project_key,
+            name_contains,
+            folder: folder_path ?? null,
+            testCaseKeys: limited.map((tc: any) => tc.key),
+            totalCount: limited.length,
+            totalScanned: allTestCases.length,
+            truncated,
+          }, null, 2)}`,
+        }],
+      };
+    } catch (error) {
+      if (error instanceof McpError) throw error;
+      throw new McpError(ErrorCode.InternalError, `Failed to search test cases: ${this.formatError(error)}`);
     }
   }
 

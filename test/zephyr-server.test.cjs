@@ -492,6 +492,124 @@ class ZephyrServerTest {
     }
   }
 
+  async testSearchTestCasesCloudUnit() {
+    const { ZephyrToolHandlers } = await import('../build/tool-handlers.js');
+    const { McpError } = await import('@modelcontextprotocol/sdk/types.js');
+
+    const cloudConfig = {
+      type: 'cloud',
+      apiEndpoints: {
+        testcase: '/testcases',
+        folder: '/folders',
+        search: '/testcases/search',
+      },
+    };
+
+    // --- name_contains validation ---
+    const noopAxios = { get: async () => { throw new Error('should not be called'); } };
+    const validationHandlers = new ZephyrToolHandlers(noopAxios, cloudConfig);
+    try {
+      await validationHandlers.searchTestCases({ project_key: 'PROJ', name_contains: '   ' });
+      throw new Error('Expected McpError for blank name_contains');
+    } catch (e) {
+      if (!(e instanceof McpError)) throw new Error(`Expected McpError for blank name_contains, got: ${e.message}`);
+    }
+
+    // --- Basic search: case-insensitive substring, no folder ---
+    const requests = [];
+    const basicAxios = {
+      get: async (url, config) => {
+        requests.push({ url, params: config && config.params });
+        return {
+          data: {
+            values: [
+              { key: 'PROJ-T1', name: 'User Login Flow' },
+              { key: 'PROJ-T2', name: 'Password Reset' },
+              { key: 'PROJ-T3', name: 'Admin LOGIN Page' },
+            ],
+          },
+        };
+      },
+    };
+    const basicHandlers = new ZephyrToolHandlers(basicAxios, cloudConfig);
+    const basicResult = await basicHandlers.searchTestCases({ project_key: 'PROJ', name_contains: 'login' });
+    const basicPayload = JSON.parse(basicResult.content[0].text.split('\n').slice(1).join('\n'));
+    if (JSON.stringify(basicPayload.testCaseKeys) !== JSON.stringify(['PROJ-T1', 'PROJ-T3'])) {
+      throw new Error(`Expected matches PROJ-T1,PROJ-T3, got ${JSON.stringify(basicPayload.testCaseKeys)}`);
+    }
+    if (basicPayload.totalCount !== 2) throw new Error(`Expected totalCount=2, got ${basicPayload.totalCount}`);
+    if (basicPayload.totalScanned !== 3) throw new Error(`Expected totalScanned=3, got ${basicPayload.totalScanned}`);
+    if (basicPayload.truncated !== false) throw new Error(`Expected truncated=false, got ${basicPayload.truncated}`);
+    if (basicPayload.folder !== null) throw new Error(`Expected folder=null, got ${basicPayload.folder}`);
+    if (requests[0].url !== '/testcases') throw new Error(`Expected GET /testcases, got ${requests[0].url}`);
+    if (requests[0].params.projectKey !== 'PROJ') throw new Error(`Expected projectKey=PROJ, got ${requests[0].params.projectKey}`);
+    if ('folderId' in requests[0].params) throw new Error('Expected no folderId param when folder_path omitted');
+
+    // --- max_results limits matches, not raw fetch ---
+    const limitedResult = await basicHandlers.searchTestCases({ project_key: 'PROJ', name_contains: 'login', max_results: 1 });
+    const limitedPayload = JSON.parse(limitedResult.content[0].text.split('\n').slice(1).join('\n'));
+    if (limitedPayload.totalCount !== 1) throw new Error(`Expected totalCount=1 with max_results=1, got ${limitedPayload.totalCount}`);
+    if (limitedPayload.totalScanned !== 3) throw new Error(`Expected totalScanned still 3 with max_results=1, got ${limitedPayload.totalScanned}`);
+
+    // --- Folder scoping resolves folderId and passes it through ---
+    const folderRequests = [];
+    const folderAxios = {
+      get: async (url, config) => {
+        folderRequests.push({ url, params: config && config.params });
+        if (url === '/folders') {
+          return { data: { values: [{ id: 42, parentId: null, name: 'Auth' }] } };
+        }
+        return { data: { values: [{ key: 'PROJ-T9', name: 'Login inside Auth folder' }] } };
+      },
+    };
+    const folderHandlers = new ZephyrToolHandlers(folderAxios, cloudConfig);
+    const folderResult = await folderHandlers.searchTestCases({ project_key: 'PROJ', name_contains: 'login', folder_path: '/Auth' });
+    const folderPayload = JSON.parse(folderResult.content[0].text.split('\n').slice(1).join('\n'));
+    if (folderPayload.folder !== '/Auth') throw new Error(`Expected folder=/Auth, got ${folderPayload.folder}`);
+    if (folderPayload.testCaseKeys[0] !== 'PROJ-T9') throw new Error('Expected PROJ-T9 in folder-scoped results');
+    const testcaseCall = folderRequests.find(r => r.url === '/testcases');
+    if (!testcaseCall || testcaseCall.params.folderId !== 42) {
+      throw new Error(`Expected /testcases call with folderId=42, got ${JSON.stringify(testcaseCall)}`);
+    }
+
+    // --- Folder not found: soft warning, no /testcases call made ---
+    const notFoundRequests = [];
+    const notFoundAxios = {
+      get: async (url, config) => {
+        notFoundRequests.push({ url, params: config && config.params });
+        return { data: { values: [] } };
+      },
+    };
+    const notFoundHandlers = new ZephyrToolHandlers(notFoundAxios, cloudConfig);
+    const notFoundResult = await notFoundHandlers.searchTestCases({ project_key: 'PROJ', name_contains: 'login', folder_path: '/Missing' });
+    if (!notFoundResult.content[0].text.includes('Folder not found')) {
+      throw new Error(`Expected folder-not-found warning, got: ${notFoundResult.content[0].text}`);
+    }
+    if (notFoundRequests.some(r => r.url === '/testcases')) {
+      throw new Error('Expected no /testcases call when folder not found');
+    }
+
+    // --- Scan cap: stops at 5000 scanned, marks truncated ---
+    const capRequests = [];
+    const capAxios = {
+      get: async (url, config) => {
+        capRequests.push({ url, params: config && config.params });
+        const startAt = config.params.startAt;
+        const page = [];
+        for (let i = 0; i < 1000; i++) {
+          page.push({ key: `PROJ-T${startAt + i}`, name: `Never Matches ${startAt + i}` });
+        }
+        return { data: { values: page, isLast: false } };
+      },
+    };
+    const capHandlers = new ZephyrToolHandlers(capAxios, cloudConfig);
+    const capResult = await capHandlers.searchTestCases({ project_key: 'PROJ', name_contains: 'nonexistent-needle' });
+    const capPayload = JSON.parse(capResult.content[0].text.split('\n').slice(1).join('\n'));
+    if (capPayload.truncated !== true) throw new Error(`Expected truncated=true at scan cap, got ${capPayload.truncated}`);
+    if (capPayload.totalScanned !== 5000) throw new Error(`Expected totalScanned=5000 at cap, got ${capPayload.totalScanned}`);
+    if (capRequests.length !== 5) throw new Error(`Expected exactly 5 page requests (5000/1000), got ${capRequests.length}`);
+  }
+
   /**
    * Run all tests
    */
@@ -507,6 +625,7 @@ class ZephyrServerTest {
     await this.runTest('Schema Contains New Tools', () => this.testSchemaContainsNewTools());
     await this.runTest('get_test_case_steps Unit Tests', () => this.testGetTestCaseStepsUnit());
     await this.runTest('update_test_case_steps Unit Tests', () => this.testUpdateTestCaseStepsUnit());
+    await this.runTest('search_test_cases Cloud Unit Tests', () => this.testSearchTestCasesCloudUnit());
 
     // Print summary
     console.log('\n' + '=' .repeat(60));
