@@ -135,6 +135,7 @@ The server provides access to various resources through URI schemes:
 - `get_test_execution`: Get detailed individual test execution results.
 - `list_executions_by_cycle`: List all test executions for a specific test cycle with status, executor, and date. *(Cloud only)*
 - `search_test_cases_by_folder`: Search for test cases in a specific folder. Automatically paginates through all results.
+- `search_test_cases`: Search for test cases by a case-insensitive name substring within a project, optionally scoped to an exact folder. Filters client-side (neither platform offers server-side name search); capped at 5000 scanned test cases per call — check the `truncated` field in the response.
 - `search_test_runs`: Search for test runs by project key and/or folder path.
 
 ### Organization
