@@ -147,6 +147,7 @@ The server provides access to various resources through URI schemes:
 - `get_projects`: Get Zephyr projects. If `project_key_or_id` is given, fetches that single project instead of listing all. *(Cloud only)*
 - `get_statuses`: Get statuses for test cases, test plans, test cycles, or test executions, optionally filtered by project and entity type. *(Cloud only)*
 - `get_priorities`: Get priorities for test cases, optionally filtered by project. *(Cloud only)*
+- `get_environments`: Get environments, optionally filtered by project. *(Cloud only)*
 
 ## Usage Examples
 

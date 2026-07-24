@@ -161,3 +161,9 @@ export interface GetPrioritiesArgs {
   start_at?: number;
   max_results?: number;
 }
+
+export interface GetEnvironmentsArgs {
+  project_key?: string;
+  start_at?: number;
+  max_results?: number;
+}

@@ -116,6 +116,7 @@ All tools are defined in `tool-schemas.ts` and implemented in `tool-handlers.ts`
 - `get_projects` — Cloud only; `GET /projects` (list) or `GET /projects/{projectIdOrKey}` (single, when `project_key_or_id` given)
 - `get_statuses` — Cloud only; `GET /statuses`, filterable by `projectKey`/`statusType`
 - `get_priorities` — Cloud only; `GET /priorities`, filterable by `projectKey`
+- `get_environments` — Cloud only; `GET /environments`, filterable by `projectKey`
 
 ---
 

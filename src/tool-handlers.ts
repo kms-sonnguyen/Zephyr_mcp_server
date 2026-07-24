@@ -17,6 +17,7 @@ import {
   GetProjectsArgs,
   GetStatusesArgs,
   GetPrioritiesArgs,
+  GetEnvironmentsArgs,
   JiraConfig
 } from './types.js';
 import { convertToGherkin, resolveFolderIdByPath, getAccountIdFromApiKey } from './utils.js';
@@ -1129,6 +1130,48 @@ export class ZephyrToolHandlers {
       };
     } catch (error) {
       throw new McpError(ErrorCode.InternalError, `Failed to get priorities: ${this.formatError(error)}`);
+    }
+  }
+
+  async getEnvironments(args: GetEnvironmentsArgs) {
+    if (this.jiraConfig.type === 'datacenter') {
+      throw new McpError(
+        ErrorCode.InvalidRequest,
+        'get_environments is only supported on Zephyr Scale Cloud. The Data Center API (v1) does not expose a /environments endpoint.'
+      );
+    }
+
+    const { project_key, start_at = 0, max_results = 200 } = args;
+
+    try {
+      const params: Record<string, any> = { startAt: start_at, maxResults: max_results };
+      if (project_key) params.projectKey = project_key;
+
+      const response = await this.axiosInstance.get('/environments', { params });
+      const data = response.data;
+      const values: any[] = Array.isArray(data?.values) ? data.values : [];
+
+      return {
+        content: [{
+          type: 'text',
+          text: JSON.stringify({
+            total: data?.total ?? values.length,
+            isLast: data?.isLast ?? true,
+            startAt: data?.startAt ?? start_at,
+            maxResults: data?.maxResults ?? max_results,
+            environments: values.map((e: any) => ({
+              id: e.id,
+              project: { id: e.project?.id },
+              name: e.name,
+              description: e.description ?? null,
+              index: e.index,
+              archived: e.archived ?? false,
+            })),
+          }, null, 2),
+        }],
+      };
+    } catch (error) {
+      throw new McpError(ErrorCode.InternalError, `Failed to get environments: ${this.formatError(error)}`);
     }
   }
 
