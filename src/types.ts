@@ -142,3 +142,9 @@ export interface UpdateTestCaseStepsArgs {
   }>;
   mode?: 'APPEND' | 'OVERWRITE';
 }
+
+export interface GetProjectsArgs {
+  project_key_or_id?: string;
+  start_at?: number;
+  max_results?: number;
+}

@@ -588,4 +588,25 @@ export const toolSchemas = [
       required: ['test_case_key', 'steps'],
     },
   },
+  {
+    name: 'get_projects',
+    description: 'Get Zephyr projects. If project_key_or_id is provided, fetches that single project instead of listing all projects. (Cloud only)',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        project_key_or_id: {
+          type: 'string',
+          description: 'Zephyr project ID or Jira project key (e.g., "PROJ"). When given, returns a single project instead of a paginated list.',
+        },
+        start_at: {
+          type: 'number',
+          description: 'Zero-indexed starting position for pagination. Ignored when project_key_or_id is given. Default 0.',
+        },
+        max_results: {
+          type: 'number',
+          description: 'Maximum number of results to return, up to 1000. Ignored when project_key_or_id is given. Default 200.',
+        },
+      },
+    },
+  },
 ];

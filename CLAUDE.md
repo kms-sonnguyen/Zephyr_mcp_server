@@ -112,6 +112,9 @@ All tools are defined in `tool-schemas.ts` and implemented in `tool-handlers.ts`
 ### Organization
 - `create_folder` — POST with `projectKey`, `name` (full path), `type`
 
+### Lookup / Reference Data
+- `get_projects` — Cloud only; `GET /projects` (list) or `GET /projects/{projectIdOrKey}` (single, when `project_key_or_id` given)
+
 ---
 
 ## MCP Resources

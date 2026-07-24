@@ -14,6 +14,7 @@ import {
   ListExecutionsByCycleArgs,
   GetTestCaseStepsArgs,
   UpdateTestCaseStepsArgs,
+  GetProjectsArgs,
   JiraConfig
 } from './types.js';
 import { convertToGherkin, resolveFolderIdByPath, getAccountIdFromApiKey } from './utils.js';
@@ -983,6 +984,61 @@ export class ZephyrToolHandlers {
       };
     } catch (error) {
       throw new McpError(ErrorCode.InternalError, `Failed to get folders: ${this.formatError(error)}`);
+    }
+  }
+
+  async getProjects(args: GetProjectsArgs) {
+    if (this.jiraConfig.type === 'datacenter') {
+      throw new McpError(
+        ErrorCode.InvalidRequest,
+        'get_projects is only supported on Zephyr Scale Cloud. The Data Center API (v1) does not expose a /projects endpoint.'
+      );
+    }
+
+    const { project_key_or_id, start_at = 0, max_results = 200 } = args;
+
+    try {
+      if (project_key_or_id) {
+        const response = await this.axiosInstance.get(`/projects/${project_key_or_id}`);
+        const p = response.data;
+        return {
+          content: [{
+            type: 'text',
+            text: JSON.stringify({
+              id: p.id,
+              key: p.key,
+              jiraProjectId: p.jiraProjectId,
+              enabled: p.enabled,
+            }, null, 2),
+          }],
+        };
+      }
+
+      const response = await this.axiosInstance.get('/projects', {
+        params: { startAt: start_at, maxResults: max_results },
+      });
+      const data = response.data;
+      const values: any[] = Array.isArray(data?.values) ? data.values : [];
+
+      return {
+        content: [{
+          type: 'text',
+          text: JSON.stringify({
+            total: data?.total ?? values.length,
+            isLast: data?.isLast ?? true,
+            startAt: data?.startAt ?? start_at,
+            maxResults: data?.maxResults ?? max_results,
+            projects: values.map((p: any) => ({
+              id: p.id,
+              key: p.key,
+              jiraProjectId: p.jiraProjectId,
+              enabled: p.enabled,
+            })),
+          }, null, 2),
+        }],
+      };
+    } catch (error) {
+      throw new McpError(ErrorCode.InternalError, `Failed to get projects: ${this.formatError(error)}`);
     }
   }
 

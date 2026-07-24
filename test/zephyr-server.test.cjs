@@ -492,6 +492,68 @@ class ZephyrServerTest {
     }
   }
 
+  async testGetProjectsUnit() {
+    const { ZephyrToolHandlers } = await import('../build/tool-handlers.js');
+    const { McpError } = await import('@modelcontextprotocol/sdk/types.js');
+
+    // --- DC rejection ---
+    const dcConfig = { type: 'datacenter', apiEndpoints: {} };
+    const dcHandlers = new ZephyrToolHandlers({}, dcConfig);
+    try {
+      await dcHandlers.getProjects({});
+      throw new Error('Expected McpError for datacenter');
+    } catch (e) {
+      if (!(e instanceof McpError)) throw new Error(`Expected McpError for DC rejection, got: ${e.message}`);
+    }
+
+    // --- Cloud: list mode with defaults ---
+    const cloudConfig = { type: 'cloud', apiEndpoints: {} };
+    const requests = [];
+    const mockAxios = {
+      get: async (url, config) => {
+        requests.push({ url, params: config && config.params });
+        if (url === '/projects') {
+          return { data: { values: [{ id: 10005, key: 'PROJ', jiraProjectId: 10000, enabled: true }], total: 1, isLast: true, startAt: 0, maxResults: 200 } };
+        }
+        return { data: { id: 10005, key: 'PROJ', jiraProjectId: 10000, enabled: true } };
+      }
+    };
+    const cloudHandlers = new ZephyrToolHandlers(mockAxios, cloudConfig);
+
+    requests.length = 0;
+    const listResult = await cloudHandlers.getProjects({});
+    if (requests[0].url !== '/projects') throw new Error(`Expected GET /projects, got ${requests[0].url}`);
+    if (requests[0].params.startAt !== 0) throw new Error(`Expected startAt=0, got ${requests[0].params.startAt}`);
+    if (requests[0].params.maxResults !== 200) throw new Error(`Expected maxResults=200, got ${requests[0].params.maxResults}`);
+    const listText = listResult.content[0].text;
+    if (!listText.includes('"projects"')) throw new Error('Expected "projects" key in list response');
+    if (!listText.includes('"PROJ"')) throw new Error('Expected project key PROJ in response');
+    if (listText.includes('"self"')) throw new Error('Response should not include raw "self" URLs');
+
+    // --- Cloud: custom pagination params ---
+    requests.length = 0;
+    await cloudHandlers.getProjects({ start_at: 10, max_results: 50 });
+    if (requests[0].params.startAt !== 10) throw new Error(`Expected startAt=10, got ${requests[0].params.startAt}`);
+    if (requests[0].params.maxResults !== 50) throw new Error(`Expected maxResults=50, got ${requests[0].params.maxResults}`);
+
+    // --- Cloud: single project lookup ---
+    requests.length = 0;
+    const singleResult = await cloudHandlers.getProjects({ project_key_or_id: 'PROJ' });
+    if (requests[0].url !== '/projects/PROJ') throw new Error(`Expected GET /projects/PROJ, got ${requests[0].url}`);
+    const singleText = singleResult.content[0].text;
+    if (singleText.includes('"projects"')) throw new Error('Single lookup should not include "projects" wrapper key');
+    if (!singleText.includes('"PROJ"')) throw new Error('Expected project key PROJ in single-lookup response');
+
+    // --- Schema and dispatch wiring ---
+    const fs = require('fs');
+    const path = require('path');
+    const schemaContent = fs.readFileSync(path.join(__dirname, '../build/tool-schemas.js'), 'utf8');
+    if (!schemaContent.includes("name: 'get_projects'")) throw new Error("'get_projects' not found in built tool-schemas.js");
+    const indexContent = fs.readFileSync(path.join(__dirname, '../build/index.js'), 'utf8');
+    if (!indexContent.includes(`case 'get_projects':`)) throw new Error("build/index.js does not dispatch 'get_projects'");
+    if (!indexContent.includes('getProjects(args')) throw new Error('build/index.js does not call toolHandlers.getProjects(...)');
+  }
+
   async testSearchTestCasesCloudUnit() {
     const { ZephyrToolHandlers } = await import('../build/tool-handlers.js');
     const { McpError } = await import('@modelcontextprotocol/sdk/types.js');
@@ -778,6 +840,7 @@ class ZephyrServerTest {
     await this.runTest('Schema Contains New Tools', () => this.testSchemaContainsNewTools());
     await this.runTest('get_test_case_steps Unit Tests', () => this.testGetTestCaseStepsUnit());
     await this.runTest('update_test_case_steps Unit Tests', () => this.testUpdateTestCaseStepsUnit());
+    await this.runTest('get_projects Unit Tests', () => this.testGetProjectsUnit());
     await this.runTest('search_test_cases Cloud Unit Tests', () => this.testSearchTestCasesCloudUnit());
     await this.runTest('search_test_cases Data Center Unit Tests', () => this.testSearchTestCasesDataCenterUnit());
     await this.runTest('search_test_cases Index Dispatch', () => this.testIndexDispatchesSearchTestCases());

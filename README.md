@@ -143,6 +143,9 @@ The server provides access to various resources through URI schemes:
 - `create_folder`: Create a new folder in Zephyr Scale.
 - `get_folders`: List folders, optionally filtered by project, type, and path. When `folder_path` is given, returns the matching folder and its full subtree at every depth.
 
+### Lookup & Reference Data
+- `get_projects`: Get Zephyr projects. If `project_key_or_id` is given, fetches that single project instead of listing all. *(Cloud only)*
+
 ## Usage Examples
 
 ### Create a BDD Test Case with Issue Links
