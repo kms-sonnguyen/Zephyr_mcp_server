@@ -103,6 +103,8 @@ class ZephyrServer {
             return await this.toolHandlers.getProjects(args as any);
           case 'get_statuses':
             return await this.toolHandlers.getStatuses(args as any);
+          case 'get_priorities':
+            return await this.toolHandlers.getPriorities(args as any);
           case 'list_executions_by_cycle':
             return await this.toolHandlers.listExecutionsByCycle(args as any);
           default:

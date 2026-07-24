@@ -155,3 +155,9 @@ export interface GetStatusesArgs {
   start_at?: number;
   max_results?: number;
 }
+
+export interface GetPrioritiesArgs {
+  project_key?: string;
+  start_at?: number;
+  max_results?: number;
+}

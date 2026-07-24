@@ -16,6 +16,7 @@ import {
   UpdateTestCaseStepsArgs,
   GetProjectsArgs,
   GetStatusesArgs,
+  GetPrioritiesArgs,
   JiraConfig
 } from './types.js';
 import { convertToGherkin, resolveFolderIdByPath, getAccountIdFromApiKey } from './utils.js';
@@ -1085,6 +1086,49 @@ export class ZephyrToolHandlers {
       };
     } catch (error) {
       throw new McpError(ErrorCode.InternalError, `Failed to get statuses: ${this.formatError(error)}`);
+    }
+  }
+
+  async getPriorities(args: GetPrioritiesArgs) {
+    if (this.jiraConfig.type === 'datacenter') {
+      throw new McpError(
+        ErrorCode.InvalidRequest,
+        'get_priorities is only supported on Zephyr Scale Cloud. The Data Center API (v1) does not expose a /priorities endpoint.'
+      );
+    }
+
+    const { project_key, start_at = 0, max_results = 200 } = args;
+
+    try {
+      const params: Record<string, any> = { startAt: start_at, maxResults: max_results };
+      if (project_key) params.projectKey = project_key;
+
+      const response = await this.axiosInstance.get('/priorities', { params });
+      const data = response.data;
+      const values: any[] = Array.isArray(data?.values) ? data.values : [];
+
+      return {
+        content: [{
+          type: 'text',
+          text: JSON.stringify({
+            total: data?.total ?? values.length,
+            isLast: data?.isLast ?? true,
+            startAt: data?.startAt ?? start_at,
+            maxResults: data?.maxResults ?? max_results,
+            priorities: values.map((p: any) => ({
+              id: p.id,
+              project: { id: p.project?.id },
+              name: p.name,
+              description: p.description ?? null,
+              index: p.index,
+              color: p.color ?? null,
+              default: p.default ?? false,
+            })),
+          }, null, 2),
+        }],
+      };
+    } catch (error) {
+      throw new McpError(ErrorCode.InternalError, `Failed to get priorities: ${this.formatError(error)}`);
     }
   }
 

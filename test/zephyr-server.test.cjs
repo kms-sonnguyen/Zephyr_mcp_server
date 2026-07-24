@@ -611,6 +611,61 @@ class ZephyrServerTest {
     if (!indexContent.includes('getStatuses(args')) throw new Error('build/index.js does not call toolHandlers.getStatuses(...)');
   }
 
+  async testGetPrioritiesUnit() {
+    const { ZephyrToolHandlers } = await import('../build/tool-handlers.js');
+    const { McpError } = await import('@modelcontextprotocol/sdk/types.js');
+
+    // --- DC rejection ---
+    const dcConfig = { type: 'datacenter', apiEndpoints: {} };
+    const dcHandlers = new ZephyrToolHandlers({}, dcConfig);
+    try {
+      await dcHandlers.getPriorities({});
+      throw new Error('Expected McpError for datacenter');
+    } catch (e) {
+      if (!(e instanceof McpError)) throw new Error(`Expected McpError for DC rejection, got: ${e.message}`);
+    }
+
+    // --- Cloud: filter passed through, response shaped ---
+    const cloudConfig = { type: 'cloud', apiEndpoints: {} };
+    const requests = [];
+    const mockAxios = {
+      get: async (url, config) => {
+        requests.push({ url, params: config && config.params });
+        return {
+          data: {
+            values: [{ id: 1, project: { id: 10005, self: 'https://x/projects/10005' }, name: 'Critical', description: 'Top level priority', index: 1, color: '#FFF', default: false }],
+            total: 1, isLast: true, startAt: 0, maxResults: 200,
+          },
+        };
+      }
+    };
+    const cloudHandlers = new ZephyrToolHandlers(mockAxios, cloudConfig);
+
+    const result = await cloudHandlers.getPriorities({ project_key: 'PROJ' });
+    if (requests[0].url !== '/priorities') throw new Error(`Expected GET /priorities, got ${requests[0].url}`);
+    if (requests[0].params.projectKey !== 'PROJ') throw new Error(`Expected projectKey=PROJ, got ${requests[0].params.projectKey}`);
+    const text = result.content[0].text;
+    if (!text.includes('"priorities"')) throw new Error('Expected "priorities" key in response');
+    if (!text.includes('"Critical"')) throw new Error('Expected priority name Critical in response');
+    if (text.includes('"self"')) throw new Error('Response should not include raw "self" URLs');
+
+    // --- Defaults when no filter given ---
+    requests.length = 0;
+    await cloudHandlers.getPriorities({});
+    if (requests[0].params.startAt !== 0) throw new Error(`Expected startAt=0, got ${requests[0].params.startAt}`);
+    if (requests[0].params.maxResults !== 200) throw new Error(`Expected maxResults=200, got ${requests[0].params.maxResults}`);
+    if ('projectKey' in requests[0].params) throw new Error('projectKey should be omitted when not provided');
+
+    // --- Schema and dispatch wiring ---
+    const fs = require('fs');
+    const path = require('path');
+    const schemaContent = fs.readFileSync(path.join(__dirname, '../build/tool-schemas.js'), 'utf8');
+    if (!schemaContent.includes("name: 'get_priorities'")) throw new Error("'get_priorities' not found in built tool-schemas.js");
+    const indexContent = fs.readFileSync(path.join(__dirname, '../build/index.js'), 'utf8');
+    if (!indexContent.includes(`case 'get_priorities':`)) throw new Error("build/index.js does not dispatch 'get_priorities'");
+    if (!indexContent.includes('getPriorities(args')) throw new Error('build/index.js does not call toolHandlers.getPriorities(...)');
+  }
+
   async testSearchTestCasesCloudUnit() {
     const { ZephyrToolHandlers } = await import('../build/tool-handlers.js');
     const { McpError } = await import('@modelcontextprotocol/sdk/types.js');
@@ -899,6 +954,7 @@ class ZephyrServerTest {
     await this.runTest('update_test_case_steps Unit Tests', () => this.testUpdateTestCaseStepsUnit());
     await this.runTest('get_projects Unit Tests', () => this.testGetProjectsUnit());
     await this.runTest('get_statuses Unit Tests', () => this.testGetStatusesUnit());
+    await this.runTest('get_priorities Unit Tests', () => this.testGetPrioritiesUnit());
     await this.runTest('search_test_cases Cloud Unit Tests', () => this.testSearchTestCasesCloudUnit());
     await this.runTest('search_test_cases Data Center Unit Tests', () => this.testSearchTestCasesDataCenterUnit());
     await this.runTest('search_test_cases Index Dispatch', () => this.testIndexDispatchesSearchTestCases());

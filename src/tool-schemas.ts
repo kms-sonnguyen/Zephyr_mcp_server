@@ -635,4 +635,25 @@ export const toolSchemas = [
       },
     },
   },
+  {
+    name: 'get_priorities',
+    description: 'Get priorities for test cases from Zephyr Scale. (Cloud only)',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        project_key: {
+          type: 'string',
+          description: 'Jira project key filter (e.g., "PROJ"). Optional.',
+        },
+        start_at: {
+          type: 'number',
+          description: 'Zero-indexed starting position for pagination. Default 0.',
+        },
+        max_results: {
+          type: 'number',
+          description: 'Maximum number of results to return, up to 1000. Default 200.',
+        },
+      },
+    },
+  },
 ];
