@@ -23,6 +23,10 @@
 - **No client-side validation** of `status_type` enum values or `project_key` format — the API is the source of truth for those.
 - Design spec: `docs/superpowers/specs/2026-07-24-lookup-tools-design.md` — full endpoint/schema verification detail lives there.
 
+**Known pre-existing gap, not in scope:** `CLAUDE.md`'s `### Organization` section currently lists only `create_folder` — `get_folders` (a full public tool, present in `tool-schemas.ts` and `README.md`) is missing from it. This plan does not fix that; it only adds the new `### Lookup / Reference Data` section after `### Organization` as-is. Worth a separate follow-up commit to add the missing `get_folders` line, but bundling an unrelated fix into this feature would violate the "no unrelated changes" rule.
+
+**`testSchemaContainsNewTools` is intentionally left untouched.** That existing test (`test/zephyr-server.test.cjs:230`) only checks for `get_test_case_steps`, `update_test_case_steps`, and `search_test_cases` — it will stay stale after this plan and won't mention any of the 4 new tools. This is not a coverage gap: each `testGetXUnit()` method added by Tasks 1-4 ends with its own schema-file and dispatch-file assertions (see each task's Step 3), which is equivalent coverage scoped to the tool being added. Do not "fix" `testSchemaContainsNewTools` to add the 4 new names — it's an older, narrower pattern that the newer per-tool tests have superseded, not a shared registry that must be kept in sync.
+
 **Deviation from the design spec's Files Changed table:** the spec lists `test/integration.test.cjs` as a file to update. This plan does not touch it. On inspection, every existing method in that file is a simulated placeholder — it logs strings like "In a real test, we'd make an actual HTTP request here" and never calls the live API despite the file's name. The most recent comparable feature (`search_test_cases`, see git history) also did not add anything there. Adding 4 more methods in that same simulated style would be indistinguishable from the placeholder tests the writing-plans process forbids, so this plan relies on the unit tests in Tasks 1-4 (which cover DC-guard behavior, request-param construction, and response shaping against a mocked `axiosInstance`) as the real verification, and leaves `test/integration.test.cjs` for a future change if genuine live-API integration testing is ever added to this repo.
 
 ---
@@ -33,7 +37,7 @@
 - Modify: `src/types.ts` (append `GetProjectsArgs` interface)
 - Modify: `src/tool-schemas.ts:590-591` (insert new schema entry before the closing `];`)
 - Modify: `src/tool-handlers.ts` (add `getProjects()` method after `getFolders()`, which ends at line 987, before `private async resolveStatusName` at line 989)
-- Modify: `src/index.ts:98-99` (insert dispatch case after the `get_test_case_steps` case)
+- Modify: `src/index.ts` (insert dispatch case immediately before `case 'list_executions_by_cycle':`, currently line 102)
 - Modify: `test/zephyr-server.test.cjs` (add `testGetProjectsUnit()` method + register it in `runAllTests()`)
 - Modify: `README.md` (insert new `### Lookup & Reference Data` section after `### Organization`, before `## Usage Examples`)
 - Modify: `CLAUDE.md` (insert new `### Lookup / Reference Data` section after `### Organization`, before the `---` at line 115)
@@ -123,7 +127,7 @@ In `test/zephyr-server.test.cjs`, add this method after `testUpdateTestCaseSteps
     const listText = listResult.content[0].text;
     if (!listText.includes('"projects"')) throw new Error('Expected "projects" key in list response');
     if (!listText.includes('"PROJ"')) throw new Error('Expected project key PROJ in response');
-    if (listText.includes('self')) throw new Error('Response should not include raw "self" URLs');
+    if (listText.includes('"self"')) throw new Error('Response should not include raw "self" URLs');
 
     // --- Cloud: custom pagination params ---
     requests.length = 0;
@@ -234,7 +238,7 @@ Add `GetProjectsArgs` to the import block at the top of `src/tool-handlers.ts` (
 
 - [ ] **Step 6: Wire up the dispatch case**
 
-In `src/index.ts`, insert after the `update_test_case_steps` case (currently lines 100-101):
+In `src/index.ts`, insert immediately before the `case 'list_executions_by_cycle':` line (currently line 102) — i.e. between `update_test_case_steps` and `list_executions_by_cycle`:
 
 ```typescript
           case 'get_projects':
@@ -284,7 +288,7 @@ git commit -m "feat: add get_projects tool (Cloud only)"
 - Modify: `src/types.ts` (append `GetStatusesArgs` interface)
 - Modify: `src/tool-schemas.ts` (insert new schema entry before the closing `];`, after the `get_projects` entry added in Task 1)
 - Modify: `src/tool-handlers.ts` (add `getStatuses()` method after `getProjects()`)
-- Modify: `src/index.ts` (insert dispatch case after the `get_projects` case)
+- Modify: `src/index.ts` (insert dispatch case immediately before `case 'list_executions_by_cycle':`, right after the `get_projects` case)
 - Modify: `test/zephyr-server.test.cjs` (add `testGetStatusesUnit()` method + register it)
 - Modify: `README.md` (append bullet to the `### Lookup & Reference Data` section added in Task 1)
 - Modify: `CLAUDE.md` (append bullet to the `### Lookup / Reference Data` section added in Task 1)
@@ -381,7 +385,7 @@ In `test/zephyr-server.test.cjs`, add after `testGetProjectsUnit()`:
     const text = result.content[0].text;
     if (!text.includes('"statuses"')) throw new Error('Expected "statuses" key in response');
     if (!text.includes('"Draft"')) throw new Error('Expected status name Draft in response');
-    if (text.includes('self')) throw new Error('Response should not include raw "self" URLs');
+    if (text.includes('"self"')) throw new Error('Response should not include raw "self" URLs');
 
     // --- Defaults when no filters given ---
     requests.length = 0;
@@ -476,7 +480,7 @@ Add `GetStatusesArgs` to the import block in `src/tool-handlers.ts`, after `GetP
 
 - [ ] **Step 6: Wire up the dispatch case**
 
-In `src/index.ts`, insert after the `get_projects` case added in Task 1:
+In `src/index.ts`, insert immediately before the `case 'list_executions_by_cycle':` line — i.e. right after the `get_projects` case added in Task 1:
 
 ```typescript
           case 'get_statuses':
@@ -522,7 +526,7 @@ git commit -m "feat: add get_statuses tool (Cloud only)"
 - Modify: `src/types.ts` (append `GetPrioritiesArgs` interface)
 - Modify: `src/tool-schemas.ts` (insert new schema entry before the closing `];`, after the `get_statuses` entry)
 - Modify: `src/tool-handlers.ts` (add `getPriorities()` method after `getStatuses()`)
-- Modify: `src/index.ts` (insert dispatch case after the `get_statuses` case)
+- Modify: `src/index.ts` (insert dispatch case immediately before `case 'list_executions_by_cycle':`, right after the `get_statuses` case)
 - Modify: `test/zephyr-server.test.cjs` (add `testGetPrioritiesUnit()` method + register it)
 - Modify: `README.md` (append bullet to `### Lookup & Reference Data`)
 - Modify: `CLAUDE.md` (append bullet to `### Lookup / Reference Data`)
@@ -612,7 +616,7 @@ In `test/zephyr-server.test.cjs`, add after `testGetStatusesUnit()`:
     const text = result.content[0].text;
     if (!text.includes('"priorities"')) throw new Error('Expected "priorities" key in response');
     if (!text.includes('"Critical"')) throw new Error('Expected priority name Critical in response');
-    if (text.includes('self')) throw new Error('Response should not include raw "self" URLs');
+    if (text.includes('"self"')) throw new Error('Response should not include raw "self" URLs');
 
     // --- Defaults when no filter given ---
     requests.length = 0;
@@ -704,7 +708,7 @@ Add `GetPrioritiesArgs` to the import block in `src/tool-handlers.ts`, after `Ge
 
 - [ ] **Step 6: Wire up the dispatch case**
 
-In `src/index.ts`, insert after the `get_statuses` case added in Task 2:
+In `src/index.ts`, insert immediately before the `case 'list_executions_by_cycle':` line — i.e. right after the `get_statuses` case added in Task 2:
 
 ```typescript
           case 'get_priorities':
@@ -750,7 +754,7 @@ git commit -m "feat: add get_priorities tool (Cloud only)"
 - Modify: `src/types.ts` (append `GetEnvironmentsArgs` interface)
 - Modify: `src/tool-schemas.ts` (insert new schema entry before the closing `];`, after the `get_priorities` entry)
 - Modify: `src/tool-handlers.ts` (add `getEnvironments()` method after `getPriorities()`)
-- Modify: `src/index.ts` (insert dispatch case after the `get_priorities` case)
+- Modify: `src/index.ts` (insert dispatch case immediately before `case 'list_executions_by_cycle':`, right after the `get_priorities` case)
 - Modify: `test/zephyr-server.test.cjs` (add `testGetEnvironmentsUnit()` method + register it)
 - Modify: `README.md` (append bullet to `### Lookup & Reference Data`)
 - Modify: `CLAUDE.md` (append bullet to `### Lookup / Reference Data`)
@@ -840,7 +844,7 @@ In `test/zephyr-server.test.cjs`, add after `testGetPrioritiesUnit()`:
     const text = result.content[0].text;
     if (!text.includes('"environments"')) throw new Error('Expected "environments" key in response');
     if (!text.includes('"Development"')) throw new Error('Expected environment name Development in response');
-    if (text.includes('self')) throw new Error('Response should not include raw "self" URLs');
+    if (text.includes('"self"')) throw new Error('Response should not include raw "self" URLs');
 
     // --- Defaults when no filter given ---
     requests.length = 0;
@@ -931,7 +935,7 @@ Add `GetEnvironmentsArgs` to the import block in `src/tool-handlers.ts`, after `
 
 - [ ] **Step 6: Wire up the dispatch case**
 
-In `src/index.ts`, insert after the `get_priorities` case added in Task 3:
+In `src/index.ts`, insert immediately before the `case 'list_executions_by_cycle':` line — i.e. right after the `get_priorities` case added in Task 3:
 
 ```typescript
           case 'get_environments':
