@@ -38,8 +38,8 @@ Endpoint paths, query parameters, and response schemas below were verified again
 | Parameter | Type | Required | Description |
 |---|---|---|---|
 | `project_key_or_id` | string | No | Zephyr project ID or Jira project key. When given, fetches a single project instead of listing. |
-| `start_at` | number | No | Zero-indexed starting position (ignored when `project_key_or_id` is given). Default `0`. |
-| `max_results` | number | No | Max results per call, capped at API's hard max of 1000 (ignored when `project_key_or_id` is given). Default `200`. |
+| `start_at` | number | No | Zero-indexed starting position. **Ignored when `project_key_or_id` is given.** Default `0`. |
+| `max_results` | number | No | Max results per call, capped at API's hard max of 1000. **Ignored when `project_key_or_id` is given.** Default `200`. |
 
 **Endpoint:** `GET /projects/{projectIdOrKey}` (single) or `GET /projects?maxResults&startAt` (list).
 
@@ -130,13 +130,39 @@ Note: per the verified schema, a `Status` object does **not** include a `type`/`
 
 ## Shared response conventions
 
-- All 4 list responses trim the raw API's `self` URLs (not actionable for an LLM caller) but otherwise pass fields through close to verbatim.
-- All list responses surface `total`, `isLast`, `startAt`, `maxResults` from the API's `PagedList` envelope so a caller can manually request the next page via `start_at` if `isLast` is `false`.
+**Key renaming:** the verified OpenAPI schemas (`ProjectList`, `StatusList`, `PriorityList`, `EnvironmentList`) confirm all 4 list endpoints wrap results under `values` in the raw API response — identical to `/folders`, not a resource-specific key. Each handler renames `response.data.values` → the resource-specific output key (`projects`/`statuses`/`priorities`/`environments`), exactly as `getFolders` maps its internal `allFolders` array → the output's `folders` key. This is a rename in the handler code, not something the API does for us.
+
+**Field projection:** each handler builds its output items via an explicit `.map()` allow-list of known fields — the same explicit-projection approach `getFolders` uses (`{ id: f.id, name: f.name, parentId: f.parentId ?? null, folderType: f.folderType }`), not a `JSON.stringify` of the raw object with `self` deleted. Concretely:
+
+```js
+// get_projects (list and single)
+{ id: p.id, key: p.key, jiraProjectId: p.jiraProjectId, enabled: p.enabled }
+
+// get_statuses
+{ id: s.id, project: { id: s.project?.id }, name: s.name, description: s.description ?? null,
+  index: s.index, color: s.color ?? null, archived: s.archived ?? false, default: s.default ?? false }
+
+// get_priorities
+{ id: p.id, project: { id: p.project?.id }, name: p.name, description: p.description ?? null,
+  index: p.index, color: p.color ?? null, default: p.default ?? false }
+
+// get_environments
+{ id: e.id, project: { id: e.project?.id }, name: e.name, description: e.description ?? null,
+  index: e.index, archived: e.archived ?? false }
+```
+
+`project.self` and the top-level `PagedList.next` field are never included — only `project.id` is projected out of the `ProjectLink`, dropping `self` by construction rather than by deleting it after the fact.
+
+- All list responses surface `total`, `isLast`, `startAt`, `maxResults` read directly off `response.data` (the `PagedList` envelope) so a caller can manually request the next page via `start_at` if `isLast` is `false`.
 - Returned as a JSON text block, matching `get_folders`' `content: [{ type: 'text', text: JSON.stringify(...) }]` convention.
 
 ## Error handling
 
-- **Data Center:** each of the 4 handlers throws `McpError(ErrorCode.InvalidRequest, 'get_X is only supported on Zephyr Scale Cloud...')` immediately, before any network call — same message style as `add_test_cases_to_run`.
+- **Data Center:** each of the 4 handlers throws `McpError(ErrorCode.InvalidRequest, ...)` immediately, before any network call, with an explicit reason clause matching the precedent at `tool-handlers.ts:1385-1390` (`add_test_cases_to_run`). Exact messages:
+  - `get_projects`: `"get_projects is only supported on Zephyr Scale Cloud. The Data Center API (v1) does not expose a /projects endpoint."`
+  - `get_statuses`: `"get_statuses is only supported on Zephyr Scale Cloud. The Data Center API (v1) does not expose a /statuses endpoint."`
+  - `get_priorities`: `"get_priorities is only supported on Zephyr Scale Cloud. The Data Center API (v1) does not expose a /priorities endpoint."`
+  - `get_environments`: `"get_environments is only supported on Zephyr Scale Cloud. The Data Center API (v1) does not expose a /environments endpoint."`
 - **Axios errors** (401 unauthorized, 404 unknown `project_key_or_id`, 500): unwrapped via the existing `this.formatError(error)` helper, rethrown as `McpError(ErrorCode.InternalError, ...)`, matching every other handler in `tool-handlers.ts`.
 - No client-side validation of `status_type`'s enum or `project_key`'s pattern — the API is the source of truth; avoids duplicating/drifting from the spec's own validation.
 
@@ -150,9 +176,10 @@ Note: per the verified schema, a `Status` object does **not** include a `type`/`
 | `src/tool-schemas.ts` | Append 4 schema entries |
 | `src/tool-handlers.ts` | Add `getProjects()`, `getStatuses()`, `getPriorities()`, `getEnvironments()` methods to `ZephyrToolHandlers` |
 | `src/index.ts` | Add dispatch cases for the 4 new tool names |
-| `test/zephyr-server.test.cjs` | Unit tests: tool registration/schema shape for each; DC-mode test asserting `McpError` is thrown for each (pattern to be confirmed against the existing `add_test_cases_to_run` DC-guard test during implementation) |
+| `test/zephyr-server.test.cjs` | Unit tests: tool registration/schema shape for each; DC-mode test asserting `McpError` is thrown for each, following the exact pattern already established at lines 249-260 / 316-332 (`testGetTestCaseStepsUnit`/`testUpdateTestCaseStepsUnit`): build a `dcConfig = { type: 'datacenter', apiEndpoints: {...} }`, instantiate `new ZephyrToolHandlers({}, dcConfig)`, call the method, assert the thrown error is `instanceof McpError` |
 | `test/integration.test.cjs` | Live-call integration tests for each endpoint, guarded by the existing `ZEPHYR_BASE_URL` requirement |
 | `README.md` | Document the 4 new tools in the MCP Tools reference section |
+| `CLAUDE.md` | Add a new "Lookup / Reference Data" subsection under `## MCP Tools` listing `get_projects`, `get_statuses`, `get_priorities`, `get_environments` — this file is the authoritative tool reference and must stay in sync with README.md |
 
 ---
 
@@ -161,3 +188,5 @@ Note: per the verified schema, a `Status` object does **not** include a `type`/`
 - `max_results` default of 200 is a starting point, not tuned against a real large org's status/priority/environment counts — these are typically small (tens, not thousands), so 200 should cover almost all cases in one call. Revisit if real usage shows otherwise.
 - `get_projects`' dual-mode behavior (single vs. list based on whether `project_key_or_id` is provided) is the one tool of the four with branching logic; the other 3 are pure single-endpoint list wrappers.
 - These tools are purely additive — no existing tool, schema, or handler is modified.
+- The private `resolveStatusName()` helper (`tool-handlers.ts:989`) already calls `GET /statuses/{statusId}` without a DC guard. This is pre-existing and out of scope — it's only reachable from Cloud-aware call paths today. Not touched by this change; noted here only so the new public `get_statuses` tool's DC guard isn't mistaken for redundant.
+- Out of scope but worth flagging during implementation: `index.ts` hardcodes `version: '0.3.1'` in the server constructor while `package.json` is at `0.7.0`. Unrelated to this spec — do not fix as a drive-by change here.
