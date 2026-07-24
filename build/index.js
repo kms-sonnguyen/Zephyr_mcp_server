@@ -79,6 +79,14 @@ class ZephyrServer {
                         return await this.toolHandlers.getTestCaseSteps(args);
                     case 'update_test_case_steps':
                         return await this.toolHandlers.updateTestCaseSteps(args);
+                    case 'get_projects':
+                        return await this.toolHandlers.getProjects(args);
+                    case 'get_statuses':
+                        return await this.toolHandlers.getStatuses(args);
+                    case 'get_priorities':
+                        return await this.toolHandlers.getPriorities(args);
+                    case 'get_environments':
+                        return await this.toolHandlers.getEnvironments(args);
                     case 'list_executions_by_cycle':
                         return await this.toolHandlers.listExecutionsByCycle(args);
                     default:

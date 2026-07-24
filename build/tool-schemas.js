@@ -588,4 +588,93 @@ export const toolSchemas = [
             required: ['test_case_key', 'steps'],
         },
     },
+    {
+        name: 'get_projects',
+        description: 'Get Zephyr projects. If project_key_or_id is provided, fetches that single project instead of listing all projects. (Cloud only)',
+        inputSchema: {
+            type: 'object',
+            properties: {
+                project_key_or_id: {
+                    type: 'string',
+                    description: 'Zephyr project ID or Jira project key (e.g., "PROJ"). When given, returns a single project instead of a paginated list.',
+                },
+                start_at: {
+                    type: 'number',
+                    description: 'Zero-indexed starting position for pagination. Ignored when project_key_or_id is given. Default 0.',
+                },
+                max_results: {
+                    type: 'number',
+                    description: 'Maximum number of results to return, up to 1000. Ignored when project_key_or_id is given. Default 200.',
+                },
+            },
+        },
+    },
+    {
+        name: 'get_statuses',
+        description: 'Get statuses for test cases, test plans, test cycles, or test executions from Zephyr Scale. (Cloud only)',
+        inputSchema: {
+            type: 'object',
+            properties: {
+                project_key: {
+                    type: 'string',
+                    description: 'Jira project key filter (e.g., "PROJ"). Optional.',
+                },
+                status_type: {
+                    type: 'string',
+                    enum: ['TEST_CASE', 'TEST_PLAN', 'TEST_CYCLE', 'TEST_EXECUTION'],
+                    description: 'Filter statuses by the entity type they belong to. Optional.',
+                },
+                start_at: {
+                    type: 'number',
+                    description: 'Zero-indexed starting position for pagination. Default 0.',
+                },
+                max_results: {
+                    type: 'number',
+                    description: 'Maximum number of results to return, up to 1000. Default 200.',
+                },
+            },
+        },
+    },
+    {
+        name: 'get_priorities',
+        description: 'Get priorities for test cases from Zephyr Scale. (Cloud only)',
+        inputSchema: {
+            type: 'object',
+            properties: {
+                project_key: {
+                    type: 'string',
+                    description: 'Jira project key filter (e.g., "PROJ"). Optional.',
+                },
+                start_at: {
+                    type: 'number',
+                    description: 'Zero-indexed starting position for pagination. Default 0.',
+                },
+                max_results: {
+                    type: 'number',
+                    description: 'Maximum number of results to return, up to 1000. Default 200.',
+                },
+            },
+        },
+    },
+    {
+        name: 'get_environments',
+        description: 'Get environments from Zephyr Scale. (Cloud only)',
+        inputSchema: {
+            type: 'object',
+            properties: {
+                project_key: {
+                    type: 'string',
+                    description: 'Jira project key filter (e.g., "PROJ"). Optional.',
+                },
+                start_at: {
+                    type: 'number',
+                    description: 'Zero-indexed starting position for pagination. Default 0.',
+                },
+                max_results: {
+                    type: 'number',
+                    description: 'Maximum number of results to return, up to 1000. Default 200.',
+                },
+            },
+        },
+    },
 ];

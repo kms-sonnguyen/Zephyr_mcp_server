@@ -885,6 +885,167 @@ export class ZephyrToolHandlers {
             throw new McpError(ErrorCode.InternalError, `Failed to get folders: ${this.formatError(error)}`);
         }
     }
+    async getProjects(args) {
+        if (this.jiraConfig.type === 'datacenter') {
+            throw new McpError(ErrorCode.InvalidRequest, 'get_projects is only supported on Zephyr Scale Cloud. The Data Center API (v1) does not expose a /projects endpoint.');
+        }
+        const { project_key_or_id, start_at = 0, max_results = 200 } = args;
+        try {
+            if (project_key_or_id) {
+                const response = await this.axiosInstance.get(`/projects/${project_key_or_id}`);
+                const p = response.data;
+                return {
+                    content: [{
+                            type: 'text',
+                            text: JSON.stringify({
+                                id: p.id,
+                                key: p.key,
+                                jiraProjectId: p.jiraProjectId,
+                                enabled: p.enabled,
+                            }, null, 2),
+                        }],
+                };
+            }
+            const response = await this.axiosInstance.get('/projects', {
+                params: { startAt: start_at, maxResults: max_results },
+            });
+            const data = response.data;
+            const values = Array.isArray(data?.values) ? data.values : [];
+            return {
+                content: [{
+                        type: 'text',
+                        text: JSON.stringify({
+                            total: data?.total ?? values.length,
+                            isLast: data?.isLast ?? true,
+                            startAt: data?.startAt ?? start_at,
+                            maxResults: data?.maxResults ?? max_results,
+                            projects: values.map((p) => ({
+                                id: p.id,
+                                key: p.key,
+                                jiraProjectId: p.jiraProjectId,
+                                enabled: p.enabled,
+                            })),
+                        }, null, 2),
+                    }],
+            };
+        }
+        catch (error) {
+            throw new McpError(ErrorCode.InternalError, `Failed to get projects: ${this.formatError(error)}`);
+        }
+    }
+    async getStatuses(args) {
+        if (this.jiraConfig.type === 'datacenter') {
+            throw new McpError(ErrorCode.InvalidRequest, 'get_statuses is only supported on Zephyr Scale Cloud. The Data Center API (v1) does not expose a /statuses endpoint.');
+        }
+        const { project_key, status_type, start_at = 0, max_results = 200 } = args;
+        try {
+            const params = { startAt: start_at, maxResults: max_results };
+            if (project_key)
+                params.projectKey = project_key;
+            if (status_type)
+                params.statusType = status_type;
+            const response = await this.axiosInstance.get('/statuses', { params });
+            const data = response.data;
+            const values = Array.isArray(data?.values) ? data.values : [];
+            return {
+                content: [{
+                        type: 'text',
+                        text: JSON.stringify({
+                            total: data?.total ?? values.length,
+                            isLast: data?.isLast ?? true,
+                            startAt: data?.startAt ?? start_at,
+                            maxResults: data?.maxResults ?? max_results,
+                            statuses: values.map((s) => ({
+                                id: s.id,
+                                project: { id: s.project?.id },
+                                name: s.name,
+                                description: s.description ?? null,
+                                index: s.index,
+                                color: s.color ?? null,
+                                archived: s.archived ?? false,
+                                default: s.default ?? false,
+                            })),
+                        }, null, 2),
+                    }],
+            };
+        }
+        catch (error) {
+            throw new McpError(ErrorCode.InternalError, `Failed to get statuses: ${this.formatError(error)}`);
+        }
+    }
+    async getPriorities(args) {
+        if (this.jiraConfig.type === 'datacenter') {
+            throw new McpError(ErrorCode.InvalidRequest, 'get_priorities is only supported on Zephyr Scale Cloud. The Data Center API (v1) does not expose a /priorities endpoint.');
+        }
+        const { project_key, start_at = 0, max_results = 200 } = args;
+        try {
+            const params = { startAt: start_at, maxResults: max_results };
+            if (project_key)
+                params.projectKey = project_key;
+            const response = await this.axiosInstance.get('/priorities', { params });
+            const data = response.data;
+            const values = Array.isArray(data?.values) ? data.values : [];
+            return {
+                content: [{
+                        type: 'text',
+                        text: JSON.stringify({
+                            total: data?.total ?? values.length,
+                            isLast: data?.isLast ?? true,
+                            startAt: data?.startAt ?? start_at,
+                            maxResults: data?.maxResults ?? max_results,
+                            priorities: values.map((p) => ({
+                                id: p.id,
+                                project: { id: p.project?.id },
+                                name: p.name,
+                                description: p.description ?? null,
+                                index: p.index,
+                                color: p.color ?? null,
+                                default: p.default ?? false,
+                            })),
+                        }, null, 2),
+                    }],
+            };
+        }
+        catch (error) {
+            throw new McpError(ErrorCode.InternalError, `Failed to get priorities: ${this.formatError(error)}`);
+        }
+    }
+    async getEnvironments(args) {
+        if (this.jiraConfig.type === 'datacenter') {
+            throw new McpError(ErrorCode.InvalidRequest, 'get_environments is only supported on Zephyr Scale Cloud. The Data Center API (v1) does not expose a /environments endpoint.');
+        }
+        const { project_key, start_at = 0, max_results = 200 } = args;
+        try {
+            const params = { startAt: start_at, maxResults: max_results };
+            if (project_key)
+                params.projectKey = project_key;
+            const response = await this.axiosInstance.get('/environments', { params });
+            const data = response.data;
+            const values = Array.isArray(data?.values) ? data.values : [];
+            return {
+                content: [{
+                        type: 'text',
+                        text: JSON.stringify({
+                            total: data?.total ?? values.length,
+                            isLast: data?.isLast ?? true,
+                            startAt: data?.startAt ?? start_at,
+                            maxResults: data?.maxResults ?? max_results,
+                            environments: values.map((e) => ({
+                                id: e.id,
+                                project: { id: e.project?.id },
+                                name: e.name,
+                                description: e.description ?? null,
+                                index: e.index,
+                                archived: e.archived ?? false,
+                            })),
+                        }, null, 2),
+                    }],
+            };
+        }
+        catch (error) {
+            throw new McpError(ErrorCode.InternalError, `Failed to get environments: ${this.formatError(error)}`);
+        }
+    }
     async resolveStatusName(statusId) {
         try {
             const response = await this.axiosInstance.get(`/statuses/${statusId}`);
