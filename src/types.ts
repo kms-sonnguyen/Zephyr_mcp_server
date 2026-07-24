@@ -148,3 +148,10 @@ export interface GetProjectsArgs {
   start_at?: number;
   max_results?: number;
 }
+
+export interface GetStatusesArgs {
+  project_key?: string;
+  status_type?: 'TEST_CASE' | 'TEST_PLAN' | 'TEST_CYCLE' | 'TEST_EXECUTION';
+  start_at?: number;
+  max_results?: number;
+}

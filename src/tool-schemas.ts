@@ -609,4 +609,30 @@ export const toolSchemas = [
       },
     },
   },
+  {
+    name: 'get_statuses',
+    description: 'Get statuses for test cases, test plans, test cycles, or test executions from Zephyr Scale. (Cloud only)',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        project_key: {
+          type: 'string',
+          description: 'Jira project key filter (e.g., "PROJ"). Optional.',
+        },
+        status_type: {
+          type: 'string',
+          enum: ['TEST_CASE', 'TEST_PLAN', 'TEST_CYCLE', 'TEST_EXECUTION'],
+          description: 'Filter statuses by the entity type they belong to. Optional.',
+        },
+        start_at: {
+          type: 'number',
+          description: 'Zero-indexed starting position for pagination. Default 0.',
+        },
+        max_results: {
+          type: 'number',
+          description: 'Maximum number of results to return, up to 1000. Default 200.',
+        },
+      },
+    },
+  },
 ];

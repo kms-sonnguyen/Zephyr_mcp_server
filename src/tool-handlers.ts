@@ -15,6 +15,7 @@ import {
   GetTestCaseStepsArgs,
   UpdateTestCaseStepsArgs,
   GetProjectsArgs,
+  GetStatusesArgs,
   JiraConfig
 } from './types.js';
 import { convertToGherkin, resolveFolderIdByPath, getAccountIdFromApiKey } from './utils.js';
@@ -1039,6 +1040,51 @@ export class ZephyrToolHandlers {
       };
     } catch (error) {
       throw new McpError(ErrorCode.InternalError, `Failed to get projects: ${this.formatError(error)}`);
+    }
+  }
+
+  async getStatuses(args: GetStatusesArgs) {
+    if (this.jiraConfig.type === 'datacenter') {
+      throw new McpError(
+        ErrorCode.InvalidRequest,
+        'get_statuses is only supported on Zephyr Scale Cloud. The Data Center API (v1) does not expose a /statuses endpoint.'
+      );
+    }
+
+    const { project_key, status_type, start_at = 0, max_results = 200 } = args;
+
+    try {
+      const params: Record<string, any> = { startAt: start_at, maxResults: max_results };
+      if (project_key) params.projectKey = project_key;
+      if (status_type) params.statusType = status_type;
+
+      const response = await this.axiosInstance.get('/statuses', { params });
+      const data = response.data;
+      const values: any[] = Array.isArray(data?.values) ? data.values : [];
+
+      return {
+        content: [{
+          type: 'text',
+          text: JSON.stringify({
+            total: data?.total ?? values.length,
+            isLast: data?.isLast ?? true,
+            startAt: data?.startAt ?? start_at,
+            maxResults: data?.maxResults ?? max_results,
+            statuses: values.map((s: any) => ({
+              id: s.id,
+              project: { id: s.project?.id },
+              name: s.name,
+              description: s.description ?? null,
+              index: s.index,
+              color: s.color ?? null,
+              archived: s.archived ?? false,
+              default: s.default ?? false,
+            })),
+          }, null, 2),
+        }],
+      };
+    } catch (error) {
+      throw new McpError(ErrorCode.InternalError, `Failed to get statuses: ${this.formatError(error)}`);
     }
   }
 

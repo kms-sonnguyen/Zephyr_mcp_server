@@ -145,6 +145,7 @@ The server provides access to various resources through URI schemes:
 
 ### Lookup & Reference Data
 - `get_projects`: Get Zephyr projects. If `project_key_or_id` is given, fetches that single project instead of listing all. *(Cloud only)*
+- `get_statuses`: Get statuses for test cases, test plans, test cycles, or test executions, optionally filtered by project and entity type. *(Cloud only)*
 
 ## Usage Examples
 
