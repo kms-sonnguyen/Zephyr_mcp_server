@@ -677,4 +677,200 @@ export const toolSchemas = [
             },
         },
     },
+    {
+        name: 'get_test_script',
+        description: 'Get the test script (PLAIN_TEXT or BDD content) for a specific test case. Zephyr stores BDD/plain-text test content under the test script resource, separate from STEP_BY_STEP steps — use get_test_case_steps instead for STEP_BY_STEP test cases.',
+        inputSchema: {
+            type: 'object',
+            properties: {
+                test_case_key: {
+                    type: 'string',
+                    description: 'Test case key (e.g., PROJ-T123)',
+                },
+            },
+            required: ['test_case_key'],
+        },
+    },
+    {
+        name: 'get_test_case_links',
+        description: 'Get all links (Jira issue links and web links) associated with a test case. (Cloud only)',
+        inputSchema: {
+            type: 'object',
+            properties: {
+                test_case_key: {
+                    type: 'string',
+                    description: 'Test case key (e.g., PROJ-T123)',
+                },
+            },
+            required: ['test_case_key'],
+        },
+    },
+    {
+        name: 'create_test_case_web_link',
+        description: 'Create a web link that associates a test case with a generic URL. (Cloud only)',
+        inputSchema: {
+            type: 'object',
+            properties: {
+                test_case_key: {
+                    type: 'string',
+                    description: 'Test case key (e.g., PROJ-T123)',
+                },
+                url: {
+                    type: 'string',
+                    description: 'The web link URL',
+                },
+                description: {
+                    type: 'string',
+                    description: 'The web link description (optional)',
+                },
+            },
+            required: ['test_case_key', 'url'],
+        },
+    },
+    {
+        name: 'create_test_case_issue_link',
+        description: 'Create a Jira issue link that associates a test case with a Jira issue. (Cloud only)',
+        inputSchema: {
+            type: 'object',
+            properties: {
+                test_case_key: {
+                    type: 'string',
+                    description: 'Test case key (e.g., PROJ-T123)',
+                },
+                issue_key: {
+                    type: 'string',
+                    description: 'Jira issue key (e.g., PROJ-123)',
+                },
+            },
+            required: ['test_case_key', 'issue_key'],
+        },
+    },
+    {
+        name: 'get_test_cases_linked_to_issue',
+        description: 'Get test case keys and versions linked to a given Jira issue. (Cloud only)',
+        inputSchema: {
+            type: 'object',
+            properties: {
+                issue_key: {
+                    type: 'string',
+                    description: 'Jira issue key (e.g., PROJ-123)',
+                },
+            },
+            required: ['issue_key'],
+        },
+    },
+    {
+        name: 'get_test_cycle_links',
+        description: 'Get all links (Jira issue links, web links, and test plan links) associated with a test cycle. (Cloud only)',
+        inputSchema: {
+            type: 'object',
+            properties: {
+                test_run_key: {
+                    type: 'string',
+                    description: 'Test cycle key or numeric ID (e.g., PROJ-R123)',
+                },
+            },
+            required: ['test_run_key'],
+        },
+    },
+    {
+        name: 'create_test_cycle_web_link',
+        description: 'Create a web link that associates a test cycle with a generic URL. (Cloud only)',
+        inputSchema: {
+            type: 'object',
+            properties: {
+                test_run_key: {
+                    type: 'string',
+                    description: 'Test cycle key or numeric ID (e.g., PROJ-R123)',
+                },
+                url: {
+                    type: 'string',
+                    description: 'The web link URL',
+                },
+                description: {
+                    type: 'string',
+                    description: 'The web link description (optional)',
+                },
+            },
+            required: ['test_run_key', 'url'],
+        },
+    },
+    {
+        name: 'create_test_cycle_issue_link',
+        description: 'Create a Jira issue link that associates a test cycle with a Jira issue. (Cloud only)',
+        inputSchema: {
+            type: 'object',
+            properties: {
+                test_run_key: {
+                    type: 'string',
+                    description: 'Test cycle key or numeric ID (e.g., PROJ-R123)',
+                },
+                issue_key: {
+                    type: 'string',
+                    description: 'Jira issue key (e.g., PROJ-123)',
+                },
+            },
+            required: ['test_run_key', 'issue_key'],
+        },
+    },
+    {
+        name: 'get_test_cycles_linked_to_issue',
+        description: 'Get test cycle IDs linked to a given Jira issue. Returns numeric IDs only, not keys — pass the ID to get_test_run to fetch full details. (Cloud only)',
+        inputSchema: {
+            type: 'object',
+            properties: {
+                issue_key: {
+                    type: 'string',
+                    description: 'Jira issue key (e.g., PROJ-123)',
+                },
+            },
+            required: ['issue_key'],
+        },
+    },
+    {
+        name: 'get_test_execution_links',
+        description: 'Get Jira issue links associated with a test execution. Test executions do not support web links. (Cloud only)',
+        inputSchema: {
+            type: 'object',
+            properties: {
+                execution_id: {
+                    type: 'string',
+                    description: 'Test execution ID or key (e.g., 5805255 or PROJ-E123)',
+                },
+            },
+            required: ['execution_id'],
+        },
+    },
+    {
+        name: 'create_test_execution_issue_link',
+        description: 'Create a Jira issue link that associates a test execution with a Jira issue — for example to link a failed execution to the bug it found. (Cloud only)',
+        inputSchema: {
+            type: 'object',
+            properties: {
+                execution_id: {
+                    type: 'string',
+                    description: 'Test execution ID or key (e.g., 5805255 or PROJ-E123)',
+                },
+                issue_key: {
+                    type: 'string',
+                    description: 'Jira issue key (e.g., PROJ-123)',
+                },
+            },
+            required: ['execution_id', 'issue_key'],
+        },
+    },
+    {
+        name: 'get_test_executions_linked_to_issue',
+        description: 'Get test execution IDs linked to a given Jira issue. Returns numeric IDs only, not keys. (Cloud only)',
+        inputSchema: {
+            type: 'object',
+            properties: {
+                issue_key: {
+                    type: 'string',
+                    description: 'Jira issue key (e.g., PROJ-123)',
+                },
+            },
+            required: ['issue_key'],
+        },
+    },
 ];

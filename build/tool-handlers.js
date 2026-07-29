@@ -1526,6 +1526,282 @@ export class ZephyrToolHandlers {
         }
         return id;
     }
+    async getTestScript(args) {
+        const { test_case_key } = args;
+        try {
+            const response = await this.axiosInstance.get(`${this.jiraConfig.apiEndpoints.testcase}/${test_case_key}/testscript`);
+            return {
+                content: [{ type: 'text', text: JSON.stringify(response.data, null, 2) }],
+            };
+        }
+        catch (error) {
+            throw new McpError(ErrorCode.InternalError, `Failed to get test script: ${this.formatError(error)}`);
+        }
+    }
+    async getTestCaseLinks(args) {
+        if (this.jiraConfig.type === 'datacenter') {
+            throw new McpError(ErrorCode.InvalidRequest, 'get_test_case_links is only supported on Zephyr Scale Cloud. The Data Center API (v1) does not expose a /links endpoint.');
+        }
+        const { test_case_key } = args;
+        try {
+            const response = await this.axiosInstance.get(`${this.jiraConfig.apiEndpoints.testcase}/${test_case_key}/links`);
+            const data = response.data;
+            const issues = Array.isArray(data?.issues) ? data.issues : [];
+            const webLinks = Array.isArray(data?.webLinks) ? data.webLinks : [];
+            return {
+                content: [{
+                        type: 'text',
+                        text: JSON.stringify({
+                            issues: issues.map((i) => ({
+                                id: i.id, issueId: i.issueId, type: i.type, target: i.target, self: i.self,
+                            })),
+                            webLinks: webLinks.map((w) => ({
+                                id: w.id, url: w.url, description: w.description ?? null, type: w.type, self: w.self,
+                            })),
+                        }, null, 2),
+                    }],
+            };
+        }
+        catch (error) {
+            if (error instanceof McpError)
+                throw error;
+            throw new McpError(ErrorCode.InternalError, `Failed to get test case links: ${this.formatError(error)}`);
+        }
+    }
+    async createTestCaseWebLink(args) {
+        if (this.jiraConfig.type === 'datacenter') {
+            throw new McpError(ErrorCode.InvalidRequest, 'create_test_case_web_link is only supported on Zephyr Scale Cloud. The Data Center API (v1) does not expose a /links/weblinks endpoint.');
+        }
+        const { test_case_key, url, description } = args;
+        const payload = { url };
+        if (description)
+            payload.description = description;
+        try {
+            const response = await this.axiosInstance.post(`${this.jiraConfig.apiEndpoints.testcase}/${test_case_key}/links/weblinks`, payload);
+            return {
+                content: [{
+                        type: 'text',
+                        text: `✅ Web link created on ${test_case_key}: ${JSON.stringify({ id: response.data.id, self: response.data.self }, null, 2)}`,
+                    }],
+            };
+        }
+        catch (error) {
+            if (error instanceof McpError)
+                throw error;
+            throw new McpError(ErrorCode.InternalError, `Failed to create test case web link: ${this.formatError(error)}`);
+        }
+    }
+    async createTestCaseIssueLink(args) {
+        if (this.jiraConfig.type === 'datacenter') {
+            throw new McpError(ErrorCode.InvalidRequest, 'create_test_case_issue_link is only supported on Zephyr Scale Cloud. The Data Center API (v1) does not expose a /links/issues endpoint.');
+        }
+        const { test_case_key, issue_key } = args;
+        try {
+            const issueId = await this.resolveJiraIssueId(issue_key);
+            const response = await this.axiosInstance.post(`${this.jiraConfig.apiEndpoints.testcase}/${test_case_key}/links/issues`, { issueId });
+            return {
+                content: [{
+                        type: 'text',
+                        text: `✅ Issue link created on ${test_case_key} → ${issue_key}: ${JSON.stringify({ id: response.data.id, self: response.data.self }, null, 2)}`,
+                    }],
+            };
+        }
+        catch (error) {
+            if (error instanceof McpError)
+                throw error;
+            throw new McpError(ErrorCode.InternalError, `Failed to create test case issue link: ${this.formatError(error)}`);
+        }
+    }
+    async getTestCasesLinkedToIssue(args) {
+        if (this.jiraConfig.type === 'datacenter') {
+            throw new McpError(ErrorCode.InvalidRequest, 'get_test_cases_linked_to_issue is only supported on Zephyr Scale Cloud. The Data Center API (v1) does not expose an /issuelinks endpoint.');
+        }
+        const { issue_key } = args;
+        try {
+            const response = await this.axiosInstance.get(`/issuelinks/${issue_key}/testcases`);
+            const data = Array.isArray(response.data) ? response.data : [];
+            return {
+                content: [{
+                        type: 'text',
+                        text: JSON.stringify({
+                            testCases: data.map((tc) => ({ key: tc.key, version: tc.version })),
+                        }, null, 2),
+                    }],
+            };
+        }
+        catch (error) {
+            if (error instanceof McpError)
+                throw error;
+            throw new McpError(ErrorCode.InternalError, `Failed to get test cases linked to issue: ${this.formatError(error)}`);
+        }
+    }
+    async getTestCycleLinks(args) {
+        if (this.jiraConfig.type === 'datacenter') {
+            throw new McpError(ErrorCode.InvalidRequest, 'get_test_cycle_links is only supported on Zephyr Scale Cloud. The Data Center API (v1) does not expose a /links endpoint.');
+        }
+        const { test_run_key } = args;
+        try {
+            const response = await this.axiosInstance.get(`${this.jiraConfig.apiEndpoints.testrun}/${test_run_key}/links`);
+            const data = response.data;
+            const issues = Array.isArray(data?.issues) ? data.issues : [];
+            const webLinks = Array.isArray(data?.webLinks) ? data.webLinks : [];
+            const testPlans = Array.isArray(data?.testPlans) ? data.testPlans : [];
+            return {
+                content: [{
+                        type: 'text',
+                        text: JSON.stringify({
+                            issues: issues.map((i) => ({
+                                id: i.id, issueId: i.issueId, type: i.type, target: i.target, self: i.self,
+                            })),
+                            webLinks: webLinks.map((w) => ({
+                                id: w.id, url: w.url, description: w.description ?? null, type: w.type, self: w.self,
+                            })),
+                            testPlans: testPlans.map((p) => ({
+                                id: p.id, testPlanId: p.testPlanId, type: p.type, target: p.target, self: p.self,
+                            })),
+                        }, null, 2),
+                    }],
+            };
+        }
+        catch (error) {
+            if (error instanceof McpError)
+                throw error;
+            throw new McpError(ErrorCode.InternalError, `Failed to get test cycle links: ${this.formatError(error)}`);
+        }
+    }
+    async createTestCycleWebLink(args) {
+        if (this.jiraConfig.type === 'datacenter') {
+            throw new McpError(ErrorCode.InvalidRequest, 'create_test_cycle_web_link is only supported on Zephyr Scale Cloud. The Data Center API (v1) does not expose a /links/weblinks endpoint.');
+        }
+        const { test_run_key, url, description } = args;
+        const payload = { url };
+        if (description)
+            payload.description = description;
+        try {
+            const response = await this.axiosInstance.post(`${this.jiraConfig.apiEndpoints.testrun}/${test_run_key}/links/weblinks`, payload);
+            return {
+                content: [{
+                        type: 'text',
+                        text: `✅ Web link created on ${test_run_key}: ${JSON.stringify({ id: response.data.id, self: response.data.self }, null, 2)}`,
+                    }],
+            };
+        }
+        catch (error) {
+            if (error instanceof McpError)
+                throw error;
+            throw new McpError(ErrorCode.InternalError, `Failed to create test cycle web link: ${this.formatError(error)}`);
+        }
+    }
+    async createTestCycleIssueLink(args) {
+        if (this.jiraConfig.type === 'datacenter') {
+            throw new McpError(ErrorCode.InvalidRequest, 'create_test_cycle_issue_link is only supported on Zephyr Scale Cloud. The Data Center API (v1) does not expose a /links/issues endpoint.');
+        }
+        const { test_run_key, issue_key } = args;
+        try {
+            const issueId = await this.resolveJiraIssueId(issue_key);
+            const response = await this.axiosInstance.post(`${this.jiraConfig.apiEndpoints.testrun}/${test_run_key}/links/issues`, { issueId });
+            return {
+                content: [{
+                        type: 'text',
+                        text: `✅ Issue link created on ${test_run_key} → ${issue_key}: ${JSON.stringify({ id: response.data.id, self: response.data.self }, null, 2)}`,
+                    }],
+            };
+        }
+        catch (error) {
+            if (error instanceof McpError)
+                throw error;
+            throw new McpError(ErrorCode.InternalError, `Failed to create test cycle issue link: ${this.formatError(error)}`);
+        }
+    }
+    async getTestCyclesLinkedToIssue(args) {
+        if (this.jiraConfig.type === 'datacenter') {
+            throw new McpError(ErrorCode.InvalidRequest, 'get_test_cycles_linked_to_issue is only supported on Zephyr Scale Cloud. The Data Center API (v1) does not expose an /issuelinks endpoint.');
+        }
+        const { issue_key } = args;
+        try {
+            const response = await this.axiosInstance.get(`/issuelinks/${issue_key}/testcycles`);
+            const data = Array.isArray(response.data) ? response.data : [];
+            return {
+                content: [{
+                        type: 'text',
+                        text: JSON.stringify({ testCycles: data.map((tc) => ({ id: tc.id })) }, null, 2),
+                    }],
+            };
+        }
+        catch (error) {
+            if (error instanceof McpError)
+                throw error;
+            throw new McpError(ErrorCode.InternalError, `Failed to get test cycles linked to issue: ${this.formatError(error)}`);
+        }
+    }
+    async getTestExecutionLinks(args) {
+        if (this.jiraConfig.type === 'datacenter') {
+            throw new McpError(ErrorCode.InvalidRequest, 'get_test_execution_links is only supported on Zephyr Scale Cloud. The Data Center API (v1) does not expose a /links endpoint.');
+        }
+        const { execution_id } = args;
+        try {
+            const response = await this.axiosInstance.get(`/testexecutions/${execution_id}/links`);
+            const data = response.data;
+            const issues = Array.isArray(data?.issues) ? data.issues : [];
+            return {
+                content: [{
+                        type: 'text',
+                        text: JSON.stringify({
+                            issues: issues.map((i) => ({
+                                id: i.id, issueId: i.issueId, type: i.type, target: i.target, self: i.self,
+                            })),
+                        }, null, 2),
+                    }],
+            };
+        }
+        catch (error) {
+            if (error instanceof McpError)
+                throw error;
+            throw new McpError(ErrorCode.InternalError, `Failed to get test execution links: ${this.formatError(error)}`);
+        }
+    }
+    async createTestExecutionIssueLink(args) {
+        if (this.jiraConfig.type === 'datacenter') {
+            throw new McpError(ErrorCode.InvalidRequest, 'create_test_execution_issue_link is only supported on Zephyr Scale Cloud. The Data Center API (v1) does not expose a /links/issues endpoint.');
+        }
+        const { execution_id, issue_key } = args;
+        try {
+            const issueId = await this.resolveJiraIssueId(issue_key);
+            const response = await this.axiosInstance.post(`/testexecutions/${execution_id}/links/issues`, { issueId });
+            return {
+                content: [{
+                        type: 'text',
+                        text: `✅ Issue link created on execution ${execution_id} → ${issue_key}: ${JSON.stringify({ id: response.data.id, self: response.data.self }, null, 2)}`,
+                    }],
+            };
+        }
+        catch (error) {
+            if (error instanceof McpError)
+                throw error;
+            throw new McpError(ErrorCode.InternalError, `Failed to create test execution issue link: ${this.formatError(error)}`);
+        }
+    }
+    async getTestExecutionsLinkedToIssue(args) {
+        if (this.jiraConfig.type === 'datacenter') {
+            throw new McpError(ErrorCode.InvalidRequest, 'get_test_executions_linked_to_issue is only supported on Zephyr Scale Cloud. The Data Center API (v1) does not expose an /issuelinks endpoint.');
+        }
+        const { issue_key } = args;
+        try {
+            const response = await this.axiosInstance.get(`/issuelinks/${issue_key}/executions`);
+            const data = Array.isArray(response.data) ? response.data : [];
+            return {
+                content: [{
+                        type: 'text',
+                        text: JSON.stringify({ testExecutions: data.map((te) => ({ id: te.id })) }, null, 2),
+                    }],
+            };
+        }
+        catch (error) {
+            if (error instanceof McpError)
+                throw error;
+            throw new McpError(ErrorCode.InternalError, `Failed to get test executions linked to issue: ${this.formatError(error)}`);
+        }
+    }
     formatError(error) {
         if (error instanceof Error && 'response' in error) {
             const axiosError = error;

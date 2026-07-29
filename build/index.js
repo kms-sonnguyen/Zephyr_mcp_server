@@ -87,6 +87,30 @@ class ZephyrServer {
                         return await this.toolHandlers.getPriorities(args);
                     case 'get_environments':
                         return await this.toolHandlers.getEnvironments(args);
+                    case 'get_test_script':
+                        return await this.toolHandlers.getTestScript(args);
+                    case 'get_test_case_links':
+                        return await this.toolHandlers.getTestCaseLinks(args);
+                    case 'create_test_case_web_link':
+                        return await this.toolHandlers.createTestCaseWebLink(args);
+                    case 'create_test_case_issue_link':
+                        return await this.toolHandlers.createTestCaseIssueLink(args);
+                    case 'get_test_cases_linked_to_issue':
+                        return await this.toolHandlers.getTestCasesLinkedToIssue(args);
+                    case 'get_test_cycle_links':
+                        return await this.toolHandlers.getTestCycleLinks(args);
+                    case 'create_test_cycle_web_link':
+                        return await this.toolHandlers.createTestCycleWebLink(args);
+                    case 'create_test_cycle_issue_link':
+                        return await this.toolHandlers.createTestCycleIssueLink(args);
+                    case 'get_test_cycles_linked_to_issue':
+                        return await this.toolHandlers.getTestCyclesLinkedToIssue(args);
+                    case 'get_test_execution_links':
+                        return await this.toolHandlers.getTestExecutionLinks(args);
+                    case 'create_test_execution_issue_link':
+                        return await this.toolHandlers.createTestExecutionIssueLink(args);
+                    case 'get_test_executions_linked_to_issue':
+                        return await this.toolHandlers.getTestExecutionsLinkedToIssue(args);
                     case 'list_executions_by_cycle':
                         return await this.toolHandlers.listExecutionsByCycle(args);
                     default:
