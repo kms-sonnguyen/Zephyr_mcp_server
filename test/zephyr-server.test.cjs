@@ -1262,6 +1262,61 @@ class ZephyrServerTest {
     if (!indexContent.includes('getTestCasesLinkedToIssue(args')) throw new Error('build/index.js does not call toolHandlers.getTestCasesLinkedToIssue(...)');
   }
 
+  async testGetTestCycleLinksUnit() {
+    const { ZephyrToolHandlers } = await import('../build/tool-handlers.js');
+    const { McpError } = await import('@modelcontextprotocol/sdk/types.js');
+
+    // --- DC rejection ---
+    const dcConfig = { type: 'datacenter', apiEndpoints: { testrun: '/rest/atm/1.0/testrun' } };
+    const dcHandlers = new ZephyrToolHandlers({}, dcConfig);
+    try {
+      await dcHandlers.getTestCycleLinks({ test_run_key: 'QA-R1' });
+      throw new Error('Expected McpError for datacenter');
+    } catch (e) {
+      if (!(e instanceof McpError)) throw new Error(`Expected McpError for DC rejection, got: ${e.message}`);
+    }
+
+    // --- Cloud: issues + webLinks + testPlans all shaped ---
+    const cloudConfig = { type: 'cloud', apiEndpoints: { testrun: '/testcycles' } };
+    const requests = [];
+    const mockAxios = {
+      get: async (url) => {
+        requests.push(url);
+        return {
+          data: {
+            issues: [{ id: 1, issueId: 10100, type: 'COVERAGE', target: 'https://x/rest/api/2/issue/10100', self: 'https://x/links/1' }],
+            webLinks: [{ id: 2, url: 'https://atlassian.com', description: 'A link', type: 'RELATED', self: 'https://x/links/2' }],
+            testPlans: [{ id: 3, testPlanId: 2, type: 'RELATED', target: 'https://x/rest/api/2/testplan/123', self: 'https://x/links/3' }],
+          },
+        };
+      },
+    };
+    const cloudHandlers = new ZephyrToolHandlers(mockAxios, cloudConfig);
+    const result = await cloudHandlers.getTestCycleLinks({ test_run_key: 'QA-R1' });
+    if (requests[0] !== '/testcycles/QA-R1/links') throw new Error(`Expected GET /testcycles/QA-R1/links, got ${requests[0]}`);
+    const payload = JSON.parse(result.content[0].text);
+    if (payload.issues[0].issueId !== 10100) throw new Error('Expected issueId 10100');
+    if (payload.webLinks[0].url !== 'https://atlassian.com') throw new Error('Expected web link url');
+    if (payload.testPlans[0].testPlanId !== 2) throw new Error('Expected testPlanId 2');
+    if (payload.testPlans[0].self !== 'https://x/links/3') throw new Error('Expected self kept on testPlans item');
+
+    // --- Missing fields default to empty arrays ---
+    const emptyAxios = { get: async () => ({ data: {} }) };
+    const emptyHandlers = new ZephyrToolHandlers(emptyAxios, cloudConfig);
+    const emptyResult = await emptyHandlers.getTestCycleLinks({ test_run_key: 'QA-R2' });
+    const emptyPayload = JSON.parse(emptyResult.content[0].text);
+    if (emptyPayload.testPlans.length !== 0) throw new Error('Expected empty testPlans array');
+
+    // --- Schema and dispatch wiring ---
+    const fs = require('fs');
+    const path = require('path');
+    const schemaContent = fs.readFileSync(path.join(__dirname, '../build/tool-schemas.js'), 'utf8');
+    if (!schemaContent.includes("name: 'get_test_cycle_links'")) throw new Error("'get_test_cycle_links' not found in built tool-schemas.js");
+    const indexContent = fs.readFileSync(path.join(__dirname, '../build/index.js'), 'utf8');
+    if (!indexContent.includes(`case 'get_test_cycle_links':`)) throw new Error("build/index.js does not dispatch 'get_test_cycle_links'");
+    if (!indexContent.includes('getTestCycleLinks(args')) throw new Error('build/index.js does not call toolHandlers.getTestCycleLinks(...)');
+  }
+
   /**
    * Run all tests
    */
@@ -1289,6 +1344,7 @@ class ZephyrServerTest {
     await this.runTest('create_test_case_web_link Unit Tests', () => this.testCreateTestCaseWebLinkUnit());
     await this.runTest('create_test_case_issue_link Unit Tests', () => this.testCreateTestCaseIssueLinkUnit());
     await this.runTest('get_test_cases_linked_to_issue Unit Tests', () => this.testGetTestCasesLinkedToIssueUnit());
+    await this.runTest('get_test_cycle_links Unit Tests', () => this.testGetTestCycleLinksUnit());
 
     // Print summary
     console.log('\n' + '=' .repeat(60));

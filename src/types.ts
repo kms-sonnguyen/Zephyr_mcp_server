@@ -190,3 +190,7 @@ export interface CreateTestCaseIssueLinkArgs {
 export interface GetTestCasesLinkedToIssueArgs {
   issue_key: string;
 }
+
+export interface GetTestCycleLinksArgs {
+  test_run_key: string;
+}

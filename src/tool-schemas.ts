@@ -759,4 +759,18 @@ export const toolSchemas = [
       required: ['issue_key'],
     },
   },
+  {
+    name: 'get_test_cycle_links',
+    description: 'Get all links (Jira issue links, web links, and test plan links) associated with a test cycle. (Cloud only)',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        test_run_key: {
+          type: 'string',
+          description: 'Test cycle key or numeric ID (e.g., PROJ-R123)',
+        },
+      },
+      required: ['test_run_key'],
+    },
+  },
 ];

@@ -126,6 +126,7 @@ All tools are defined in `tool-schemas.ts` and implemented in `tool-handlers.ts`
 - `create_test_case_web_link` — Cloud only; `POST /testcases/{key}/links/weblinks`
 - `create_test_case_issue_link` — Cloud only; resolves `issue_key` → numeric `issueId` via `resolveJiraIssueId()`, then `POST /testcases/{key}/links/issues`
 - `get_test_cases_linked_to_issue` — Cloud only; `GET /issuelinks/{issueKey}/testcases`, returns `{ key, version }` pairs
+- `get_test_cycle_links` — Cloud only; `GET /testcycles/{key}/links`, response includes `issues`, `webLinks`, and `testPlans`
 
 ---
 

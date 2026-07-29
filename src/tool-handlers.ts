@@ -23,6 +23,7 @@ import {
   CreateTestCaseWebLinkArgs,
   CreateTestCaseIssueLinkArgs,
   GetTestCasesLinkedToIssueArgs,
+  GetTestCycleLinksArgs,
   JiraConfig
 } from './types.js';
 import { convertToGherkin, resolveFolderIdByPath, getAccountIdFromApiKey } from './utils.js';
@@ -1848,6 +1849,45 @@ export class ZephyrToolHandlers {
     } catch (error) {
       if (error instanceof McpError) throw error;
       throw new McpError(ErrorCode.InternalError, `Failed to get test cases linked to issue: ${this.formatError(error)}`);
+    }
+  }
+
+  async getTestCycleLinks(args: GetTestCycleLinksArgs) {
+    if (this.jiraConfig.type === 'datacenter') {
+      throw new McpError(
+        ErrorCode.InvalidRequest,
+        'get_test_cycle_links is only supported on Zephyr Scale Cloud. The Data Center API (v1) does not expose a /links endpoint.'
+      );
+    }
+
+    const { test_run_key } = args;
+
+    try {
+      const response = await this.axiosInstance.get(`${this.jiraConfig.apiEndpoints.testrun}/${test_run_key}/links`);
+      const data = response.data;
+      const issues: any[] = Array.isArray(data?.issues) ? data.issues : [];
+      const webLinks: any[] = Array.isArray(data?.webLinks) ? data.webLinks : [];
+      const testPlans: any[] = Array.isArray(data?.testPlans) ? data.testPlans : [];
+
+      return {
+        content: [{
+          type: 'text',
+          text: JSON.stringify({
+            issues: issues.map((i: any) => ({
+              id: i.id, issueId: i.issueId, type: i.type, target: i.target, self: i.self,
+            })),
+            webLinks: webLinks.map((w: any) => ({
+              id: w.id, url: w.url, description: w.description ?? null, type: w.type, self: w.self,
+            })),
+            testPlans: testPlans.map((p: any) => ({
+              id: p.id, testPlanId: p.testPlanId, type: p.type, target: p.target, self: p.self,
+            })),
+          }, null, 2),
+        }],
+      };
+    } catch (error) {
+      if (error instanceof McpError) throw error;
+      throw new McpError(ErrorCode.InternalError, `Failed to get test cycle links: ${this.formatError(error)}`);
     }
   }
 
