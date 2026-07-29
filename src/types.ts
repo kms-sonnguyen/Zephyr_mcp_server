@@ -200,3 +200,8 @@ export interface CreateTestCycleWebLinkArgs {
   url: string;
   description?: string;
 }
+
+export interface CreateTestCycleIssueLinkArgs {
+  test_run_key: string;
+  issue_key: string;
+}

@@ -795,4 +795,22 @@ export const toolSchemas = [
       required: ['test_run_key', 'url'],
     },
   },
+  {
+    name: 'create_test_cycle_issue_link',
+    description: 'Create a Jira issue link that associates a test cycle with a Jira issue. (Cloud only)',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        test_run_key: {
+          type: 'string',
+          description: 'Test cycle key or numeric ID (e.g., PROJ-R123)',
+        },
+        issue_key: {
+          type: 'string',
+          description: 'Jira issue key (e.g., PROJ-123)',
+        },
+      },
+      required: ['test_run_key', 'issue_key'],
+    },
+  },
 ];
