@@ -107,6 +107,8 @@ class ZephyrServer {
             return await this.toolHandlers.getPriorities(args as any);
           case 'get_environments':
             return await this.toolHandlers.getEnvironments(args as any);
+          case 'get_test_script':
+            return await this.toolHandlers.getTestScript(args as any);
           case 'list_executions_by_cycle':
             return await this.toolHandlers.listExecutionsByCycle(args as any);
           default:

@@ -125,6 +125,9 @@ The server provides access to various resources through URI schemes:
 - `get_test_case_steps`: Get the STEP_BY_STEP test steps for a test case, with pagination. *(Cloud only)*
 - `update_test_case_steps`: Append or overwrite STEP_BY_STEP test steps on an existing test case. Supports inline steps and call-to-test references. *(Cloud only)*
 
+### Test Scripts
+- `get_test_script`: Get the test script (PLAIN_TEXT or BDD content) for a test case — use this instead of `get_test_case_steps` for non-STEP_BY_STEP test cases.
+
 ### Test Run Management
 - `create_test_run`: Create a new test run.
 - `get_test_run`: Get detailed information about a specific test run, including resolved status name.

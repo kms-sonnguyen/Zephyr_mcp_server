@@ -97,6 +97,9 @@ All tools are defined in `tool-schemas.ts` and implemented in `tool-handlers.ts`
 - `update_test_case_bdd` — PUT update preserving all existing fields, replacing only the BDD script
 - `delete_test_case` — DELETE, expects 204
 
+### Test Scripts
+- `get_test_script` — `GET {testcase}/{key}/testscript`; works on both Cloud and Data Center (already used internally by `getTestCase()`)
+
 ### Test Run Management
 - `create_test_run` — POST; `test_case_keys` maps to `items[].testCaseKey`
 - `get_test_run` — fetch by key (e.g., `PROJ-R123`)

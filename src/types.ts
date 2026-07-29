@@ -167,3 +167,7 @@ export interface GetEnvironmentsArgs {
   start_at?: number;
   max_results?: number;
 }
+
+export interface GetTestScriptArgs {
+  test_case_key: string;
+}

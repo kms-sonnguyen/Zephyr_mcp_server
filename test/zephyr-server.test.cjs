@@ -992,6 +992,62 @@ class ZephyrServerTest {
     }
   }
 
+  async testGetTestScriptUnit() {
+    const { ZephyrToolHandlers } = await import('../build/tool-handlers.js');
+    const { McpError } = await import('@modelcontextprotocol/sdk/types.js');
+
+    // --- Cloud: successful fetch, raw passthrough ---
+    const cloudConfig = { type: 'cloud', apiEndpoints: { testcase: '/testcases' } };
+    const cloudRequests = [];
+    const cloudAxios = {
+      get: async (url) => {
+        cloudRequests.push(url);
+        return { data: { id: 1, type: 'plain', text: 'Attempt to login to the application' } };
+      },
+    };
+    const cloudHandlers = new ZephyrToolHandlers(cloudAxios, cloudConfig);
+    const cloudResult = await cloudHandlers.getTestScript({ test_case_key: 'QA-T1' });
+    if (cloudRequests[0] !== '/testcases/QA-T1/testscript') {
+      throw new Error(`Expected GET /testcases/QA-T1/testscript, got ${cloudRequests[0]}`);
+    }
+    if (!cloudResult.content[0].text.includes('"plain"')) throw new Error('Expected script type "plain" in response');
+    if (!cloudResult.content[0].text.includes('Attempt to login')) throw new Error('Expected script text in response');
+
+    // --- Data Center: not gated, same endpoint pattern via apiEndpoints.testcase ---
+    const dcConfig = { type: 'datacenter', apiEndpoints: { testcase: '/rest/atm/1.0/testcase' } };
+    const dcRequests = [];
+    const dcAxios = {
+      get: async (url) => {
+        dcRequests.push(url);
+        return { data: { id: 2, type: 'bdd', text: 'Given a user\nWhen they log in\nThen they see the dashboard' } };
+      },
+    };
+    const dcHandlers = new ZephyrToolHandlers(dcAxios, dcConfig);
+    const dcResult = await dcHandlers.getTestScript({ test_case_key: 'QA-T2' });
+    if (dcRequests[0] !== '/rest/atm/1.0/testcase/QA-T2/testscript') {
+      throw new Error(`Expected DC testscript URL, got ${dcRequests[0]}`);
+    }
+    if (!dcResult.content[0].text.includes('"bdd"')) throw new Error('Expected script type "bdd" in DC response');
+
+    // --- Error propagation wraps axios failures in McpError ---
+    const errorAxios = { get: async () => { throw new Error('boom'); } };
+    const errorHandlers = new ZephyrToolHandlers(errorAxios, cloudConfig);
+    try {
+      await errorHandlers.getTestScript({ test_case_key: 'QA-T1' });
+      throw new Error('Expected McpError on axios failure');
+    } catch (e) {
+      if (!(e instanceof McpError)) throw new Error(`Expected McpError, got: ${e.message}`);
+    }
+
+    // --- Schema and dispatch wiring ---
+    const fs = require('fs');
+    const schemaContent = fs.readFileSync(path.join(__dirname, '../build/tool-schemas.js'), 'utf8');
+    if (!schemaContent.includes("name: 'get_test_script'")) throw new Error("'get_test_script' not found in built tool-schemas.js");
+    const indexContent = fs.readFileSync(path.join(__dirname, '../build/index.js'), 'utf8');
+    if (!indexContent.includes(`case 'get_test_script':`)) throw new Error("build/index.js does not dispatch 'get_test_script'");
+    if (!indexContent.includes('getTestScript(args')) throw new Error('build/index.js does not call toolHandlers.getTestScript(...)');
+  }
+
   /**
    * Run all tests
    */
@@ -1014,6 +1070,7 @@ class ZephyrServerTest {
     await this.runTest('search_test_cases Cloud Unit Tests', () => this.testSearchTestCasesCloudUnit());
     await this.runTest('search_test_cases Data Center Unit Tests', () => this.testSearchTestCasesDataCenterUnit());
     await this.runTest('search_test_cases Index Dispatch', () => this.testIndexDispatchesSearchTestCases());
+    await this.runTest('get_test_script Unit Tests', () => this.testGetTestScriptUnit());
 
     // Print summary
     console.log('\n' + '=' .repeat(60));

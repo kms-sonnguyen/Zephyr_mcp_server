@@ -18,6 +18,7 @@ import {
   GetStatusesArgs,
   GetPrioritiesArgs,
   GetEnvironmentsArgs,
+  GetTestScriptArgs,
   JiraConfig
 } from './types.js';
 import { convertToGherkin, resolveFolderIdByPath, getAccountIdFromApiKey } from './utils.js';
@@ -1713,6 +1714,20 @@ export class ZephyrToolHandlers {
       throw new Error(`Could not resolve numeric ID for Jira issue "${issueKey}"`);
     }
     return id;
+  }
+
+  async getTestScript(args: GetTestScriptArgs) {
+    const { test_case_key } = args;
+    try {
+      const response = await this.axiosInstance.get(
+        `${this.jiraConfig.apiEndpoints.testcase}/${test_case_key}/testscript`
+      );
+      return {
+        content: [{ type: 'text', text: JSON.stringify(response.data, null, 2) }],
+      };
+    } catch (error) {
+      throw new McpError(ErrorCode.InternalError, `Failed to get test script: ${this.formatError(error)}`);
+    }
   }
 
   private formatError(error: unknown): string {

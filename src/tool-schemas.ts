@@ -677,4 +677,18 @@ export const toolSchemas = [
       },
     },
   },
+  {
+    name: 'get_test_script',
+    description: 'Get the test script (PLAIN_TEXT or BDD content) for a specific test case. Zephyr stores BDD/plain-text test content under the test script resource, separate from STEP_BY_STEP steps — use get_test_case_steps instead for STEP_BY_STEP test cases.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        test_case_key: {
+          type: 'string',
+          description: 'Test case key (e.g., PROJ-T123)',
+        },
+      },
+      required: ['test_case_key'],
+    },
+  },
 ];
