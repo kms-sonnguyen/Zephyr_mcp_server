@@ -841,4 +841,22 @@ export const toolSchemas = [
       required: ['execution_id'],
     },
   },
+  {
+    name: 'create_test_execution_issue_link',
+    description: 'Create a Jira issue link that associates a test execution with a Jira issue — for example to link a failed execution to the bug it found. (Cloud only)',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        execution_id: {
+          type: 'string',
+          description: 'Test execution ID or key (e.g., 5805255 or PROJ-E123)',
+        },
+        issue_key: {
+          type: 'string',
+          description: 'Jira issue key (e.g., PROJ-123)',
+        },
+      },
+      required: ['execution_id', 'issue_key'],
+    },
+  },
 ];

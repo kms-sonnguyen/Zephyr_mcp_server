@@ -1506,6 +1506,61 @@ class ZephyrServerTest {
     if (!indexContent.includes('getTestExecutionLinks(args')) throw new Error('build/index.js does not call toolHandlers.getTestExecutionLinks(...)');
   }
 
+  async testCreateTestExecutionIssueLinkUnit() {
+    const { ZephyrToolHandlers } = await import('../build/tool-handlers.js');
+    const { McpError } = await import('@modelcontextprotocol/sdk/types.js');
+
+    // --- DC rejection ---
+    const dcConfig = { type: 'datacenter', apiEndpoints: {} };
+    const dcHandlers = new ZephyrToolHandlers({}, dcConfig);
+    try {
+      await dcHandlers.createTestExecutionIssueLink({ execution_id: '5805255', issue_key: 'QA-1' });
+      throw new Error('Expected McpError for datacenter');
+    } catch (e) {
+      if (!(e instanceof McpError)) throw new Error(`Expected McpError for DC rejection, got: ${e.message}`);
+    }
+
+    // --- Cloud: issue key resolved, then POSTed to hardcoded /testexecutions/ prefix ---
+    const cloudConfig = { type: 'cloud', apiEndpoints: {} };
+    const posted = [];
+    const mockAxios = {
+      post: async (url, body) => {
+        posted.push({ url, body });
+        return { data: { id: 13, self: 'https://x/links/13' } };
+      },
+    };
+    const cloudHandlers = new ZephyrToolHandlers(mockAxios, cloudConfig);
+    cloudHandlers.resolveJiraIssueId = async (issueKey) => {
+      if (issueKey !== 'QA-1') throw new Error(`Unexpected issue key ${issueKey}`);
+      return 10100;
+    };
+
+    const result = await cloudHandlers.createTestExecutionIssueLink({ execution_id: 'PROJ-E123', issue_key: 'QA-1' });
+    if (posted[0].url !== '/testexecutions/PROJ-E123/links/issues') throw new Error(`Expected POST to issues endpoint, got ${posted[0].url}`);
+    if (posted[0].body.issueId !== 10100) throw new Error(`Expected issueId=10100, got ${posted[0].body.issueId}`);
+    if (!result.content[0].text.includes('PROJ-E123')) throw new Error('Expected execution id in success message');
+    if (!result.content[0].text.includes('QA-1')) throw new Error('Expected issue key in success message');
+
+    // --- Resolution failure propagates ---
+    const failHandlers = new ZephyrToolHandlers(mockAxios, cloudConfig);
+    failHandlers.resolveJiraIssueId = async () => { throw new Error('Could not resolve numeric ID for Jira issue "QA-404"'); };
+    try {
+      await failHandlers.createTestExecutionIssueLink({ execution_id: 'PROJ-E123', issue_key: 'QA-404' });
+      throw new Error('Expected McpError when issue resolution fails');
+    } catch (e) {
+      if (!(e instanceof McpError)) throw new Error(`Expected McpError, got: ${e.message}`);
+    }
+
+    // --- Schema and dispatch wiring ---
+    const fs = require('fs');
+    const path = require('path');
+    const schemaContent = fs.readFileSync(path.join(__dirname, '../build/tool-schemas.js'), 'utf8');
+    if (!schemaContent.includes("name: 'create_test_execution_issue_link'")) throw new Error("'create_test_execution_issue_link' not found in built tool-schemas.js");
+    const indexContent = fs.readFileSync(path.join(__dirname, '../build/index.js'), 'utf8');
+    if (!indexContent.includes(`case 'create_test_execution_issue_link':`)) throw new Error("build/index.js does not dispatch 'create_test_execution_issue_link'");
+    if (!indexContent.includes('createTestExecutionIssueLink(args')) throw new Error('build/index.js does not call toolHandlers.createTestExecutionIssueLink(...)');
+  }
+
   /**
    * Run all tests
    */
@@ -1538,6 +1593,7 @@ class ZephyrServerTest {
     await this.runTest('create_test_cycle_issue_link Unit Tests', () => this.testCreateTestCycleIssueLinkUnit());
     await this.runTest('get_test_cycles_linked_to_issue Unit Tests', () => this.testGetTestCyclesLinkedToIssueUnit());
     await this.runTest('get_test_execution_links Unit Tests', () => this.testGetTestExecutionLinksUnit());
+    await this.runTest('create_test_execution_issue_link Unit Tests', () => this.testCreateTestExecutionIssueLinkUnit());
 
     // Print summary
     console.log('\n' + '=' .repeat(60));
