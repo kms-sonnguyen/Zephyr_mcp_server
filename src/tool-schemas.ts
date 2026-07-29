@@ -745,4 +745,18 @@ export const toolSchemas = [
       required: ['test_case_key', 'issue_key'],
     },
   },
+  {
+    name: 'get_test_cases_linked_to_issue',
+    description: 'Get test case keys and versions linked to a given Jira issue. (Cloud only)',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        issue_key: {
+          type: 'string',
+          description: 'Jira issue key (e.g., PROJ-123)',
+        },
+      },
+      required: ['issue_key'],
+    },
+  },
 ];

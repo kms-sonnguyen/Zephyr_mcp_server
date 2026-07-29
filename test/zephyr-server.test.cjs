@@ -1213,6 +1213,55 @@ class ZephyrServerTest {
     if (!indexContent.includes('createTestCaseIssueLink(args')) throw new Error('build/index.js does not call toolHandlers.createTestCaseIssueLink(...)');
   }
 
+  async testGetTestCasesLinkedToIssueUnit() {
+    const { ZephyrToolHandlers } = await import('../build/tool-handlers.js');
+    const { McpError } = await import('@modelcontextprotocol/sdk/types.js');
+
+    // --- DC rejection ---
+    const dcConfig = { type: 'datacenter', apiEndpoints: {} };
+    const dcHandlers = new ZephyrToolHandlers({}, dcConfig);
+    try {
+      await dcHandlers.getTestCasesLinkedToIssue({ issue_key: 'QA-1' });
+      throw new Error('Expected McpError for datacenter');
+    } catch (e) {
+      if (!(e instanceof McpError)) throw new Error(`Expected McpError for DC rejection, got: ${e.message}`);
+    }
+
+    // --- Cloud: bare array response, key+version kept, self dropped ---
+    const cloudConfig = { type: 'cloud', apiEndpoints: {} };
+    const requests = [];
+    const mockAxios = {
+      get: async (url) => {
+        requests.push(url);
+        return { data: [{ key: 'PROJ-T42', version: 1, self: 'https://x/testcases/PROJ-T42/versions/1' }] };
+      },
+    };
+    const cloudHandlers = new ZephyrToolHandlers(mockAxios, cloudConfig);
+    const result = await cloudHandlers.getTestCasesLinkedToIssue({ issue_key: 'PROJ-123' });
+    if (requests[0] !== '/issuelinks/PROJ-123/testcases') throw new Error(`Expected GET /issuelinks/PROJ-123/testcases, got ${requests[0]}`);
+    const payload = JSON.parse(result.content[0].text);
+    if (payload.testCases.length !== 1) throw new Error(`Expected 1 test case, got ${payload.testCases.length}`);
+    if (payload.testCases[0].key !== 'PROJ-T42') throw new Error('Expected key PROJ-T42');
+    if (payload.testCases[0].version !== 1) throw new Error('Expected version 1');
+    if ('self' in payload.testCases[0]) throw new Error('self should be dropped from reverse-lookup response');
+
+    // --- Empty result ---
+    const emptyAxios = { get: async () => ({ data: [] }) };
+    const emptyHandlers = new ZephyrToolHandlers(emptyAxios, cloudConfig);
+    const emptyResult = await emptyHandlers.getTestCasesLinkedToIssue({ issue_key: 'PROJ-999' });
+    const emptyPayload = JSON.parse(emptyResult.content[0].text);
+    if (emptyPayload.testCases.length !== 0) throw new Error('Expected empty testCases array');
+
+    // --- Schema and dispatch wiring ---
+    const fs = require('fs');
+    const path = require('path');
+    const schemaContent = fs.readFileSync(path.join(__dirname, '../build/tool-schemas.js'), 'utf8');
+    if (!schemaContent.includes("name: 'get_test_cases_linked_to_issue'")) throw new Error("'get_test_cases_linked_to_issue' not found in built tool-schemas.js");
+    const indexContent = fs.readFileSync(path.join(__dirname, '../build/index.js'), 'utf8');
+    if (!indexContent.includes(`case 'get_test_cases_linked_to_issue':`)) throw new Error("build/index.js does not dispatch 'get_test_cases_linked_to_issue'");
+    if (!indexContent.includes('getTestCasesLinkedToIssue(args')) throw new Error('build/index.js does not call toolHandlers.getTestCasesLinkedToIssue(...)');
+  }
+
   /**
    * Run all tests
    */
@@ -1239,6 +1288,7 @@ class ZephyrServerTest {
     await this.runTest('get_test_case_links Unit Tests', () => this.testGetTestCaseLinksUnit());
     await this.runTest('create_test_case_web_link Unit Tests', () => this.testCreateTestCaseWebLinkUnit());
     await this.runTest('create_test_case_issue_link Unit Tests', () => this.testCreateTestCaseIssueLinkUnit());
+    await this.runTest('get_test_cases_linked_to_issue Unit Tests', () => this.testGetTestCasesLinkedToIssueUnit());
 
     // Print summary
     console.log('\n' + '=' .repeat(60));
