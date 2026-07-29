@@ -859,4 +859,18 @@ export const toolSchemas = [
       required: ['execution_id', 'issue_key'],
     },
   },
+  {
+    name: 'get_test_executions_linked_to_issue',
+    description: 'Get test execution IDs linked to a given Jira issue. Returns numeric IDs only, not keys. (Cloud only)',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        issue_key: {
+          type: 'string',
+          description: 'Jira issue key (e.g., PROJ-123)',
+        },
+      },
+      required: ['issue_key'],
+    },
+  },
 ];

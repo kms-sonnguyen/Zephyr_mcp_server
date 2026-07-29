@@ -29,6 +29,7 @@ import {
   GetTestCyclesLinkedToIssueArgs,
   GetTestExecutionLinksArgs,
   CreateTestExecutionIssueLinkArgs,
+  GetTestExecutionsLinkedToIssueArgs,
   JiraConfig
 } from './types.js';
 import { convertToGherkin, resolveFolderIdByPath, getAccountIdFromApiKey } from './utils.js';
@@ -2029,6 +2030,31 @@ export class ZephyrToolHandlers {
     } catch (error) {
       if (error instanceof McpError) throw error;
       throw new McpError(ErrorCode.InternalError, `Failed to create test execution issue link: ${this.formatError(error)}`);
+    }
+  }
+
+  async getTestExecutionsLinkedToIssue(args: GetTestExecutionsLinkedToIssueArgs) {
+    if (this.jiraConfig.type === 'datacenter') {
+      throw new McpError(
+        ErrorCode.InvalidRequest,
+        'get_test_executions_linked_to_issue is only supported on Zephyr Scale Cloud. The Data Center API (v1) does not expose an /issuelinks endpoint.'
+      );
+    }
+
+    const { issue_key } = args;
+
+    try {
+      const response = await this.axiosInstance.get(`/issuelinks/${issue_key}/executions`);
+      const data: any[] = Array.isArray(response.data) ? response.data : [];
+      return {
+        content: [{
+          type: 'text',
+          text: JSON.stringify({ testExecutions: data.map((te: any) => ({ id: te.id })) }, null, 2),
+        }],
+      };
+    } catch (error) {
+      if (error instanceof McpError) throw error;
+      throw new McpError(ErrorCode.InternalError, `Failed to get test executions linked to issue: ${this.formatError(error)}`);
     }
   }
 
