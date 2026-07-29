@@ -19,6 +19,7 @@ import {
   GetPrioritiesArgs,
   GetEnvironmentsArgs,
   GetTestScriptArgs,
+  GetTestCaseLinksArgs,
   JiraConfig
 } from './types.js';
 import { convertToGherkin, resolveFolderIdByPath, getAccountIdFromApiKey } from './utils.js';
@@ -1727,6 +1728,41 @@ export class ZephyrToolHandlers {
       };
     } catch (error) {
       throw new McpError(ErrorCode.InternalError, `Failed to get test script: ${this.formatError(error)}`);
+    }
+  }
+
+  async getTestCaseLinks(args: GetTestCaseLinksArgs) {
+    if (this.jiraConfig.type === 'datacenter') {
+      throw new McpError(
+        ErrorCode.InvalidRequest,
+        'get_test_case_links is only supported on Zephyr Scale Cloud. The Data Center API (v1) does not expose a /links endpoint.'
+      );
+    }
+
+    const { test_case_key } = args;
+
+    try {
+      const response = await this.axiosInstance.get(`${this.jiraConfig.apiEndpoints.testcase}/${test_case_key}/links`);
+      const data = response.data;
+      const issues: any[] = Array.isArray(data?.issues) ? data.issues : [];
+      const webLinks: any[] = Array.isArray(data?.webLinks) ? data.webLinks : [];
+
+      return {
+        content: [{
+          type: 'text',
+          text: JSON.stringify({
+            issues: issues.map((i: any) => ({
+              id: i.id, issueId: i.issueId, type: i.type, target: i.target, self: i.self,
+            })),
+            webLinks: webLinks.map((w: any) => ({
+              id: w.id, url: w.url, description: w.description ?? null, type: w.type, self: w.self,
+            })),
+          }, null, 2),
+        }],
+      };
+    } catch (error) {
+      if (error instanceof McpError) throw error;
+      throw new McpError(ErrorCode.InternalError, `Failed to get test case links: ${this.formatError(error)}`);
     }
   }
 

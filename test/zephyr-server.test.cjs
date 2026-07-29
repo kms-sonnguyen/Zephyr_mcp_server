@@ -1048,6 +1048,61 @@ class ZephyrServerTest {
     if (!indexContent.includes('getTestScript(args')) throw new Error('build/index.js does not call toolHandlers.getTestScript(...)');
   }
 
+  async testGetTestCaseLinksUnit() {
+    const { ZephyrToolHandlers } = await import('../build/tool-handlers.js');
+    const { McpError } = await import('@modelcontextprotocol/sdk/types.js');
+
+    // --- DC rejection ---
+    const dcConfig = { type: 'datacenter', apiEndpoints: { testcase: '/rest/atm/1.0/testcase' } };
+    const dcHandlers = new ZephyrToolHandlers({}, dcConfig);
+    try {
+      await dcHandlers.getTestCaseLinks({ test_case_key: 'QA-T1' });
+      throw new Error('Expected McpError for datacenter');
+    } catch (e) {
+      if (!(e instanceof McpError)) throw new Error(`Expected McpError for DC rejection, got: ${e.message}`);
+    }
+
+    // --- Cloud: response shaped, self kept ---
+    const cloudConfig = { type: 'cloud', apiEndpoints: { testcase: '/testcases' } };
+    const requests = [];
+    const mockAxios = {
+      get: async (url) => {
+        requests.push(url);
+        return {
+          data: {
+            issues: [{ id: 1, issueId: 10100, type: 'COVERAGE', target: 'https://x/rest/api/2/issue/10100', self: 'https://x/links/1' }],
+            webLinks: [{ id: 2, url: 'https://atlassian.com', description: 'A link to atlassian.com', type: 'RELATED', self: 'https://x/links/2' }],
+          },
+        };
+      },
+    };
+    const cloudHandlers = new ZephyrToolHandlers(mockAxios, cloudConfig);
+    const result = await cloudHandlers.getTestCaseLinks({ test_case_key: 'QA-T1' });
+    if (requests[0] !== '/testcases/QA-T1/links') throw new Error(`Expected GET /testcases/QA-T1/links, got ${requests[0]}`);
+    const text = result.content[0].text;
+    if (!text.includes('"issueId": 10100')) throw new Error('Expected issueId 10100 in response');
+    if (!text.includes('"url": "https://atlassian.com"')) throw new Error('Expected web link url in response');
+    if (!text.includes('"self": "https://x/links/1"')) throw new Error('Expected self URL kept for issue link');
+    if (!text.includes('"self": "https://x/links/2"')) throw new Error('Expected self URL kept for web link');
+
+    // --- Empty response: missing issues/webLinks default to empty arrays ---
+    const emptyAxios = { get: async () => ({ data: {} }) };
+    const emptyHandlers = new ZephyrToolHandlers(emptyAxios, cloudConfig);
+    const emptyResult = await emptyHandlers.getTestCaseLinks({ test_case_key: 'QA-T2' });
+    const emptyPayload = JSON.parse(emptyResult.content[0].text);
+    if (!Array.isArray(emptyPayload.issues) || emptyPayload.issues.length !== 0) throw new Error('Expected empty issues array');
+    if (!Array.isArray(emptyPayload.webLinks) || emptyPayload.webLinks.length !== 0) throw new Error('Expected empty webLinks array');
+
+    // --- Schema and dispatch wiring ---
+    const fs = require('fs');
+    const path = require('path');
+    const schemaContent = fs.readFileSync(path.join(__dirname, '../build/tool-schemas.js'), 'utf8');
+    if (!schemaContent.includes("name: 'get_test_case_links'")) throw new Error("'get_test_case_links' not found in built tool-schemas.js");
+    const indexContent = fs.readFileSync(path.join(__dirname, '../build/index.js'), 'utf8');
+    if (!indexContent.includes(`case 'get_test_case_links':`)) throw new Error("build/index.js does not dispatch 'get_test_case_links'");
+    if (!indexContent.includes('getTestCaseLinks(args')) throw new Error('build/index.js does not call toolHandlers.getTestCaseLinks(...)');
+  }
+
   /**
    * Run all tests
    */
@@ -1071,6 +1126,7 @@ class ZephyrServerTest {
     await this.runTest('search_test_cases Data Center Unit Tests', () => this.testSearchTestCasesDataCenterUnit());
     await this.runTest('search_test_cases Index Dispatch', () => this.testIndexDispatchesSearchTestCases());
     await this.runTest('get_test_script Unit Tests', () => this.testGetTestScriptUnit());
+    await this.runTest('get_test_case_links Unit Tests', () => this.testGetTestCaseLinksUnit());
 
     // Print summary
     console.log('\n' + '=' .repeat(60));

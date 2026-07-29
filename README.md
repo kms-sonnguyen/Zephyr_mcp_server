@@ -152,6 +152,9 @@ The server provides access to various resources through URI schemes:
 - `get_priorities`: Get priorities for test cases, optionally filtered by project. *(Cloud only)*
 - `get_environments`: Get environments, optionally filtered by project. *(Cloud only)*
 
+### Jira Links
+- `get_test_case_links`: Get all links (Jira issue links and web links) associated with a test case. *(Cloud only)*
+
 ## Usage Examples
 
 ### Create a BDD Test Case with Issue Links

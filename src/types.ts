@@ -171,3 +171,7 @@ export interface GetEnvironmentsArgs {
 export interface GetTestScriptArgs {
   test_case_key: string;
 }
+
+export interface GetTestCaseLinksArgs {
+  test_case_key: string;
+}

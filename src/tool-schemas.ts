@@ -691,4 +691,18 @@ export const toolSchemas = [
       required: ['test_case_key'],
     },
   },
+  {
+    name: 'get_test_case_links',
+    description: 'Get all links (Jira issue links and web links) associated with a test case. (Cloud only)',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        test_case_key: {
+          type: 'string',
+          description: 'Test case key (e.g., PROJ-T123)',
+        },
+      },
+      required: ['test_case_key'],
+    },
+  },
 ];

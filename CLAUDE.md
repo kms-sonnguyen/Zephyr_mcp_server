@@ -121,6 +121,9 @@ All tools are defined in `tool-schemas.ts` and implemented in `tool-handlers.ts`
 - `get_priorities` — Cloud only; `GET /priorities`, filterable by `projectKey`
 - `get_environments` — Cloud only; `GET /environments`, filterable by `projectKey`
 
+### Jira Links
+- `get_test_case_links` — Cloud only; `GET /testcases/{key}/links`; `self` kept in the response as the only handle to a specific link
+
 ---
 
 ## MCP Resources
