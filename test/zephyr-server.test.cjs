@@ -1152,6 +1152,67 @@ class ZephyrServerTest {
     if (!indexContent.includes('createTestCaseWebLink(args')) throw new Error('build/index.js does not call toolHandlers.createTestCaseWebLink(...)');
   }
 
+  async testCreateTestCaseIssueLinkUnit() {
+    const { ZephyrToolHandlers } = await import('../build/tool-handlers.js');
+    const { McpError } = await import('@modelcontextprotocol/sdk/types.js');
+
+    // --- DC rejection ---
+    const dcConfig = { type: 'datacenter', apiEndpoints: { testcase: '/rest/atm/1.0/testcase' } };
+    const dcHandlers = new ZephyrToolHandlers({}, dcConfig);
+    try {
+      await dcHandlers.createTestCaseIssueLink({ test_case_key: 'QA-T1', issue_key: 'QA-1' });
+      throw new Error('Expected McpError for datacenter');
+    } catch (e) {
+      if (!(e instanceof McpError)) throw new Error(`Expected McpError for DC rejection, got: ${e.message}`);
+    }
+
+    // --- Cloud: issue key resolved to numeric id, then POSTed ---
+    const cloudConfig = {
+      type: 'cloud',
+      apiEndpoints: { testcase: '/testcases' },
+      jiraBaseUrl: 'https://example.atlassian.net',
+    };
+    const posted = [];
+    const mockAxios = {
+      post: async (url, body) => {
+        posted.push({ url, body });
+        return { data: { id: 7, self: 'https://x/links/7' } };
+      },
+    };
+    const cloudHandlers = new ZephyrToolHandlers(mockAxios, cloudConfig);
+    // Stub the private issue-resolution helper so this test doesn't depend on real Jira auth env vars
+    cloudHandlers.resolveJiraIssueId = async (issueKey) => {
+      if (issueKey !== 'QA-1') throw new Error(`Unexpected issue key ${issueKey}`);
+      return 10100;
+    };
+
+    const result = await cloudHandlers.createTestCaseIssueLink({ test_case_key: 'QA-T1', issue_key: 'QA-1' });
+    if (posted[0].url !== '/testcases/QA-T1/links/issues') throw new Error(`Expected POST to issues endpoint, got ${posted[0].url}`);
+    if (posted[0].body.issueId !== 10100) throw new Error(`Expected issueId=10100 in POST body, got ${posted[0].body.issueId}`);
+    if (!result.content[0].text.includes('QA-T1')) throw new Error('Expected test case key in success message');
+    if (!result.content[0].text.includes('QA-1')) throw new Error('Expected issue key in success message');
+    if (!result.content[0].text.includes('"id": 7')) throw new Error('Expected created id in success message');
+
+    // --- Resolution failure propagates as McpError, not silently swallowed ---
+    const failHandlers = new ZephyrToolHandlers(mockAxios, cloudConfig);
+    failHandlers.resolveJiraIssueId = async () => { throw new Error('Could not resolve numeric ID for Jira issue "QA-404"'); };
+    try {
+      await failHandlers.createTestCaseIssueLink({ test_case_key: 'QA-T1', issue_key: 'QA-404' });
+      throw new Error('Expected McpError when issue resolution fails');
+    } catch (e) {
+      if (!(e instanceof McpError)) throw new Error(`Expected McpError, got: ${e.message}`);
+    }
+
+    // --- Schema and dispatch wiring ---
+    const fs = require('fs');
+    const path = require('path');
+    const schemaContent = fs.readFileSync(path.join(__dirname, '../build/tool-schemas.js'), 'utf8');
+    if (!schemaContent.includes("name: 'create_test_case_issue_link'")) throw new Error("'create_test_case_issue_link' not found in built tool-schemas.js");
+    const indexContent = fs.readFileSync(path.join(__dirname, '../build/index.js'), 'utf8');
+    if (!indexContent.includes(`case 'create_test_case_issue_link':`)) throw new Error("build/index.js does not dispatch 'create_test_case_issue_link'");
+    if (!indexContent.includes('createTestCaseIssueLink(args')) throw new Error('build/index.js does not call toolHandlers.createTestCaseIssueLink(...)');
+  }
+
   /**
    * Run all tests
    */
@@ -1177,6 +1238,7 @@ class ZephyrServerTest {
     await this.runTest('get_test_script Unit Tests', () => this.testGetTestScriptUnit());
     await this.runTest('get_test_case_links Unit Tests', () => this.testGetTestCaseLinksUnit());
     await this.runTest('create_test_case_web_link Unit Tests', () => this.testCreateTestCaseWebLinkUnit());
+    await this.runTest('create_test_case_issue_link Unit Tests', () => this.testCreateTestCaseIssueLinkUnit());
 
     // Print summary
     console.log('\n' + '=' .repeat(60));

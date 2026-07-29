@@ -727,4 +727,22 @@ export const toolSchemas = [
       required: ['test_case_key', 'url'],
     },
   },
+  {
+    name: 'create_test_case_issue_link',
+    description: 'Create a Jira issue link that associates a test case with a Jira issue. (Cloud only)',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        test_case_key: {
+          type: 'string',
+          description: 'Test case key (e.g., PROJ-T123)',
+        },
+        issue_key: {
+          type: 'string',
+          description: 'Jira issue key (e.g., PROJ-123)',
+        },
+      },
+      required: ['test_case_key', 'issue_key'],
+    },
+  },
 ];

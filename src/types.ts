@@ -181,3 +181,8 @@ export interface CreateTestCaseWebLinkArgs {
   url: string;
   description?: string;
 }
+
+export interface CreateTestCaseIssueLinkArgs {
+  test_case_key: string;
+  issue_key: string;
+}

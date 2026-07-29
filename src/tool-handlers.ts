@@ -21,6 +21,7 @@ import {
   GetTestScriptArgs,
   GetTestCaseLinksArgs,
   CreateTestCaseWebLinkArgs,
+  CreateTestCaseIssueLinkArgs,
   JiraConfig
 } from './types.js';
 import { convertToGherkin, resolveFolderIdByPath, getAccountIdFromApiKey } from './utils.js';
@@ -1792,6 +1793,33 @@ export class ZephyrToolHandlers {
     } catch (error) {
       if (error instanceof McpError) throw error;
       throw new McpError(ErrorCode.InternalError, `Failed to create test case web link: ${this.formatError(error)}`);
+    }
+  }
+
+  async createTestCaseIssueLink(args: CreateTestCaseIssueLinkArgs) {
+    if (this.jiraConfig.type === 'datacenter') {
+      throw new McpError(
+        ErrorCode.InvalidRequest,
+        'create_test_case_issue_link is only supported on Zephyr Scale Cloud. The Data Center API (v1) does not expose a /links/issues endpoint.'
+      );
+    }
+
+    const { test_case_key, issue_key } = args;
+
+    try {
+      const issueId = await this.resolveJiraIssueId(issue_key);
+      const response = await this.axiosInstance.post(
+        `${this.jiraConfig.apiEndpoints.testcase}/${test_case_key}/links/issues`, { issueId }
+      );
+      return {
+        content: [{
+          type: 'text',
+          text: `✅ Issue link created on ${test_case_key} → ${issue_key}: ${JSON.stringify({ id: response.data.id, self: response.data.self }, null, 2)}`,
+        }],
+      };
+    } catch (error) {
+      if (error instanceof McpError) throw error;
+      throw new McpError(ErrorCode.InternalError, `Failed to create test case issue link: ${this.formatError(error)}`);
     }
   }
 

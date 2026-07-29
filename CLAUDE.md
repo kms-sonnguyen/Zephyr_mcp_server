@@ -124,6 +124,7 @@ All tools are defined in `tool-schemas.ts` and implemented in `tool-handlers.ts`
 ### Jira Links
 - `get_test_case_links` — Cloud only; `GET /testcases/{key}/links`; `self` kept in the response as the only handle to a specific link
 - `create_test_case_web_link` — Cloud only; `POST /testcases/{key}/links/weblinks`
+- `create_test_case_issue_link` — Cloud only; resolves `issue_key` → numeric `issueId` via `resolveJiraIssueId()`, then `POST /testcases/{key}/links/issues`
 
 ---
 
