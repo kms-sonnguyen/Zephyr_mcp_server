@@ -175,3 +175,9 @@ export interface GetTestScriptArgs {
 export interface GetTestCaseLinksArgs {
   test_case_key: string;
 }
+
+export interface CreateTestCaseWebLinkArgs {
+  test_case_key: string;
+  url: string;
+  description?: string;
+}

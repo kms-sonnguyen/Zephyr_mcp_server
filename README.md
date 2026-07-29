@@ -154,6 +154,7 @@ The server provides access to various resources through URI schemes:
 
 ### Jira Links
 - `get_test_case_links`: Get all links (Jira issue links and web links) associated with a test case. *(Cloud only)*
+- `create_test_case_web_link`: Create a web link that associates a test case with a generic URL. *(Cloud only)*
 
 ## Usage Examples
 

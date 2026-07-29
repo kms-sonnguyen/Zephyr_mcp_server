@@ -705,4 +705,26 @@ export const toolSchemas = [
       required: ['test_case_key'],
     },
   },
+  {
+    name: 'create_test_case_web_link',
+    description: 'Create a web link that associates a test case with a generic URL. (Cloud only)',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        test_case_key: {
+          type: 'string',
+          description: 'Test case key (e.g., PROJ-T123)',
+        },
+        url: {
+          type: 'string',
+          description: 'The web link URL',
+        },
+        description: {
+          type: 'string',
+          description: 'The web link description (optional)',
+        },
+      },
+      required: ['test_case_key', 'url'],
+    },
+  },
 ];

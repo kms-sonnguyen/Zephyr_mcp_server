@@ -1103,6 +1103,55 @@ class ZephyrServerTest {
     if (!indexContent.includes('getTestCaseLinks(args')) throw new Error('build/index.js does not call toolHandlers.getTestCaseLinks(...)');
   }
 
+  async testCreateTestCaseWebLinkUnit() {
+    const { ZephyrToolHandlers } = await import('../build/tool-handlers.js');
+    const { McpError } = await import('@modelcontextprotocol/sdk/types.js');
+
+    // --- DC rejection ---
+    const dcConfig = { type: 'datacenter', apiEndpoints: { testcase: '/rest/atm/1.0/testcase' } };
+    const dcHandlers = new ZephyrToolHandlers({}, dcConfig);
+    try {
+      await dcHandlers.createTestCaseWebLink({ test_case_key: 'QA-T1', url: 'https://example.com' });
+      throw new Error('Expected McpError for datacenter');
+    } catch (e) {
+      if (!(e instanceof McpError)) throw new Error(`Expected McpError for DC rejection, got: ${e.message}`);
+    }
+
+    // --- Cloud: with description ---
+    const cloudConfig = { type: 'cloud', apiEndpoints: { testcase: '/testcases' } };
+    const posted = [];
+    const mockAxios = {
+      post: async (url, body) => {
+        posted.push({ url, body });
+        return { data: { id: 5, self: 'https://x/links/5' } };
+      },
+    };
+    const cloudHandlers = new ZephyrToolHandlers(mockAxios, cloudConfig);
+    const result = await cloudHandlers.createTestCaseWebLink({
+      test_case_key: 'QA-T1', url: 'https://atlassian.com', description: 'A link to atlassian.com',
+    });
+    if (posted[0].url !== '/testcases/QA-T1/links/weblinks') throw new Error(`Expected POST to weblinks endpoint, got ${posted[0].url}`);
+    if (posted[0].body.url !== 'https://atlassian.com') throw new Error('Expected url in POST body');
+    if (posted[0].body.description !== 'A link to atlassian.com') throw new Error('Expected description in POST body');
+    if (!result.content[0].text.includes('QA-T1')) throw new Error('Expected test case key in success message');
+    if (!result.content[0].text.includes('"id": 5')) throw new Error('Expected created id in success message');
+    if (!result.content[0].text.includes('links/5')) throw new Error('Expected self URL in success message');
+
+    // --- Cloud: without description (optional field omitted from body) ---
+    posted.length = 0;
+    await cloudHandlers.createTestCaseWebLink({ test_case_key: 'QA-T1', url: 'https://example.com' });
+    if ('description' in posted[0].body) throw new Error('description should be omitted from body when not provided');
+
+    // --- Schema and dispatch wiring ---
+    const fs = require('fs');
+    const path = require('path');
+    const schemaContent = fs.readFileSync(path.join(__dirname, '../build/tool-schemas.js'), 'utf8');
+    if (!schemaContent.includes("name: 'create_test_case_web_link'")) throw new Error("'create_test_case_web_link' not found in built tool-schemas.js");
+    const indexContent = fs.readFileSync(path.join(__dirname, '../build/index.js'), 'utf8');
+    if (!indexContent.includes(`case 'create_test_case_web_link':`)) throw new Error("build/index.js does not dispatch 'create_test_case_web_link'");
+    if (!indexContent.includes('createTestCaseWebLink(args')) throw new Error('build/index.js does not call toolHandlers.createTestCaseWebLink(...)');
+  }
+
   /**
    * Run all tests
    */
@@ -1127,6 +1176,7 @@ class ZephyrServerTest {
     await this.runTest('search_test_cases Index Dispatch', () => this.testIndexDispatchesSearchTestCases());
     await this.runTest('get_test_script Unit Tests', () => this.testGetTestScriptUnit());
     await this.runTest('get_test_case_links Unit Tests', () => this.testGetTestCaseLinksUnit());
+    await this.runTest('create_test_case_web_link Unit Tests', () => this.testCreateTestCaseWebLinkUnit());
 
     // Print summary
     console.log('\n' + '=' .repeat(60));
