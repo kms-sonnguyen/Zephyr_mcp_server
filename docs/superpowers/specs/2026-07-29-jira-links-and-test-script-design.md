@@ -143,6 +143,7 @@ Unlike the lookup-tools spec's projects/statuses, `self` **is** kept here — it
   { "id": 1, "testPlanId": 2, "type": "RELATED", "target": "https://.../testplan/123", "self": "https://.../links/1" }
 ]
 ```
+Explicit allow-list for each `testPlans` item, per the verified `TestCycleTestPlanLink` schema: `{ id, testPlanId, type, target, self }` — same four-of-five fields kept as `issues`/`webLinks` items (only the field that varies by link kind — `issueId`/`url`+`description`/`testPlanId` — differs), `self` kept for the same link-delete-handle reason stated above.
 
 ---
 
@@ -158,6 +159,8 @@ Unlike the lookup-tools spec's projects/statuses, `self` **is** kept here — it
 
 **Endpoint:** `POST /testcycles/{testCycleIdOrKey}/links/weblinks`, body `{ url, description? }` → `CreatedResource`
 
+**Response:** `✅ Web link created on {test_run_key}: {id: ..., self: ...}`
+
 ---
 
 ### `create_test_cycle_issue_link`
@@ -170,6 +173,8 @@ Unlike the lookup-tools spec's projects/statuses, `self` **is** kept here — it
 | `issue_key` | string | Yes | Jira issue key. |
 
 **Endpoint:** `POST /testcycles/{testCycleIdOrKey}/links/issues`, body `{ issueId }` → `CreatedResource`. Reuses `resolveJiraIssueId()`, same endpoint `createTestRunCloud` already calls for `issue_links`/`issue_key` at creation time (`tool-handlers.ts:833-836`).
+
+**Response:** `✅ Issue link created on {test_run_key} → {issue_key}: {id: ..., self: ...}`
 
 ---
 
@@ -199,7 +204,7 @@ Note this reverse lookup returns numeric **IDs only**, not keys (`TestCycleId` =
 |---|---|---|---|
 | `execution_id` | string | Yes | Test execution ID or key (e.g. `5805255` or `PROJ-E123`), matching the existing `get_test_execution` tool's `execution_id` param naming. |
 
-**Endpoint:** `GET /testexecutions/{testExecutionIdOrKey}/links` → `TestExecutionLinkList`
+**Endpoint:** `GET /testexecutions/{testExecutionIdOrKey}/links` → `TestExecutionLinkList`. Hardcodes the `/testexecutions/` prefix directly — `apiEndpoints` (`types.ts`'s `ApiEndpoints` interface) has no `testexecution` key, consistent with how `getTestExecution` already hardcodes this same prefix at `tool-handlers.ts:1213`.
 
 **Response:**
 ```json
@@ -218,7 +223,9 @@ No `webLinks` key — test executions don't support web links (see Background).
 | `execution_id` | string | Yes | Test execution ID or key. |
 | `issue_key` | string | Yes | Jira issue key. |
 
-**Endpoint:** `POST /testexecutions/{testExecutionIdOrKey}/links/issues`, body `{ issueId }` → `CreatedResource`. Reuses `resolveJiraIssueId()`.
+**Endpoint:** `POST /testexecutions/{testExecutionIdOrKey}/links/issues`, body `{ issueId }` → `CreatedResource`. Reuses `resolveJiraIssueId()`. Hardcodes the `/testexecutions/` prefix directly (see Implementation Notes — `apiEndpoints` has no `testexecution` key, consistent with how `getTestExecution` already hardcodes `/testexecutions/{execution_id}` at `tool-handlers.ts:1213`).
+
+**Response:** `✅ Issue link created on execution {execution_id} → {issue_key}: {id: ..., self: ...}`
 
 ---
 
@@ -249,7 +256,7 @@ Same ID-only asymmetry as `get_test_cycles_linked_to_issue`.
 
 ## Error handling
 
-- **Data Center guard** on all 11 link tools, thrown before any network call:
+- **Data Center guard** on all 11 link tools, thrown before any network call as `McpError(ErrorCode.InvalidRequest, ...)` — matching the existing `update_test_run` (`tool-handlers.ts:657`) and `add_test_cases_to_run` guards, not `ErrorCode.InternalError`:
   `"{tool_name} is only supported on Zephyr Scale Cloud. The Data Center API (v1) does not expose this endpoint."`
 - `get_test_script` has no DC guard (see Background).
 - Axios errors unwrapped via the existing `this.formatError(error)` helper, rethrown as `McpError(ErrorCode.InternalError, ...)`.
@@ -261,7 +268,7 @@ Same ID-only asymmetry as `get_test_cycles_linked_to_issue`.
 
 | File | Change |
 |---|---|
-| `src/types.ts` | Add `GetTestScriptArgs`, `GetTestCaseLinksArgs`, `CreateWebLinkArgs { key, url, description? }`, `CreateIssueLinkArgs { key, issue_key }`, `GetLinkedToIssueArgs { issue_key }`, `GetTestExecutionLinksArgs { execution_id }`, `CreateExecutionIssueLinkArgs { execution_id, issue_key }` interfaces (shared shapes reused across test case/cycle variants where the field names line up) |
+| `src/types.ts` | Add 12 dedicated arg interfaces, one per tool, each matching its schema's own parameter names exactly (no shared/remapped shapes — see note below): `GetTestScriptArgs { test_case_key }`, `GetTestCaseLinksArgs { test_case_key }`, `CreateTestCaseWebLinkArgs { test_case_key, url, description? }`, `CreateTestCaseIssueLinkArgs { test_case_key, issue_key }`, `GetTestCasesLinkedToIssueArgs { issue_key }`, `GetTestCycleLinksArgs { test_run_key }`, `CreateTestCycleWebLinkArgs { test_run_key, url, description? }`, `CreateTestCycleIssueLinkArgs { test_run_key, issue_key }`, `GetTestCyclesLinkedToIssueArgs { issue_key }`, `GetTestExecutionLinksArgs { execution_id }`, `CreateTestExecutionIssueLinkArgs { execution_id, issue_key }`, `GetTestExecutionsLinkedToIssueArgs { issue_key }` |
 | `src/tool-schemas.ts` | Append 12 schema entries |
 | `src/tool-handlers.ts` | Add 12 methods to `ZephyrToolHandlers`; no changes to existing methods |
 | `src/index.ts` | Add 12 dispatch cases |
@@ -274,6 +281,7 @@ Same ID-only asymmetry as `get_test_cycles_linked_to_issue`.
 
 ## Implementation Notes
 
+- **No shared arg interfaces across test-case/test-cycle variants.** An earlier draft of this spec proposed generic `CreateWebLinkArgs { key, url, description? }`/`CreateIssueLinkArgs { key, issue_key }` shapes reused by both the test-case and test-cycle tools. That's rejected: the schemas use `test_case_key` vs. `test_run_key` (matching every other tool's existing param-naming convention, e.g. `get_test_case` vs. `get_test_run`), so a shared `key` field would force either a remapping step in each handler or a schema/type mismatch. Each of the 12 tools gets its own 1:1 interface instead, listed in Files Changed above.
 - These tools are purely additive — no existing tool, schema, or handler is modified.
 - `create_test_case_issue_link` and `create_test_cycle_issue_link` expose, as standalone tools, functionality that already exists inline inside `createTestCaseCloud`/`createTestRunCloud` (both call the identical endpoint during creation). This is intentional duplication of the *endpoint*, not the *code* — the standalone tools call `resolveJiraIssueId()` + `axiosInstance.post()` directly rather than routing through the creation handlers, since the creation handlers have unrelated required params (`project_key`, `name`, etc.) that don't apply post-creation.
 - `get_test_cycles_linked_to_issue` and `get_test_executions_linked_to_issue` return bare numeric IDs with no key — this is a genuine API asymmetry (verified in the spec, `TestCycleId`/`TestExecutionId` schemas have no `key` field, while `TestCaseKeyAndVersion` does). Each tool's schema `description` will state this explicitly so callers aren't surprised.
