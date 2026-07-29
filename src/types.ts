@@ -205,3 +205,7 @@ export interface CreateTestCycleIssueLinkArgs {
   test_run_key: string;
   issue_key: string;
 }
+
+export interface GetTestCyclesLinkedToIssueArgs {
+  issue_key: string;
+}
