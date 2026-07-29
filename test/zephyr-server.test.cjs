@@ -1050,7 +1050,7 @@ class ZephyrServerTest {
 
   async testGetTestCaseLinksUnit() {
     const { ZephyrToolHandlers } = await import('../build/tool-handlers.js');
-    const { McpError } = await import('@modelcontextprotocol/sdk/types.js');
+    const { McpError, ErrorCode } = await import('@modelcontextprotocol/sdk/types.js');
 
     // --- DC rejection ---
     const dcConfig = { type: 'datacenter', apiEndpoints: { testcase: '/rest/atm/1.0/testcase' } };
@@ -1060,6 +1060,7 @@ class ZephyrServerTest {
       throw new Error('Expected McpError for datacenter');
     } catch (e) {
       if (!(e instanceof McpError)) throw new Error(`Expected McpError for DC rejection, got: ${e.message}`);
+      if (e.code !== ErrorCode.InvalidRequest) throw new Error(`Expected ErrorCode.InvalidRequest for DC rejection, got: ${e.code}`);
     }
 
     // --- Cloud: response shaped, self kept ---
@@ -1105,7 +1106,7 @@ class ZephyrServerTest {
 
   async testCreateTestCaseWebLinkUnit() {
     const { ZephyrToolHandlers } = await import('../build/tool-handlers.js');
-    const { McpError } = await import('@modelcontextprotocol/sdk/types.js');
+    const { McpError, ErrorCode } = await import('@modelcontextprotocol/sdk/types.js');
 
     // --- DC rejection ---
     const dcConfig = { type: 'datacenter', apiEndpoints: { testcase: '/rest/atm/1.0/testcase' } };
@@ -1115,6 +1116,7 @@ class ZephyrServerTest {
       throw new Error('Expected McpError for datacenter');
     } catch (e) {
       if (!(e instanceof McpError)) throw new Error(`Expected McpError for DC rejection, got: ${e.message}`);
+      if (e.code !== ErrorCode.InvalidRequest) throw new Error(`Expected ErrorCode.InvalidRequest for DC rejection, got: ${e.code}`);
     }
 
     // --- Cloud: with description ---
@@ -1154,7 +1156,7 @@ class ZephyrServerTest {
 
   async testCreateTestCaseIssueLinkUnit() {
     const { ZephyrToolHandlers } = await import('../build/tool-handlers.js');
-    const { McpError } = await import('@modelcontextprotocol/sdk/types.js');
+    const { McpError, ErrorCode } = await import('@modelcontextprotocol/sdk/types.js');
 
     // --- DC rejection ---
     const dcConfig = { type: 'datacenter', apiEndpoints: { testcase: '/rest/atm/1.0/testcase' } };
@@ -1164,6 +1166,7 @@ class ZephyrServerTest {
       throw new Error('Expected McpError for datacenter');
     } catch (e) {
       if (!(e instanceof McpError)) throw new Error(`Expected McpError for DC rejection, got: ${e.message}`);
+      if (e.code !== ErrorCode.InvalidRequest) throw new Error(`Expected ErrorCode.InvalidRequest for DC rejection, got: ${e.code}`);
     }
 
     // --- Cloud: issue key resolved to numeric id, then POSTed ---
@@ -1215,7 +1218,7 @@ class ZephyrServerTest {
 
   async testGetTestCasesLinkedToIssueUnit() {
     const { ZephyrToolHandlers } = await import('../build/tool-handlers.js');
-    const { McpError } = await import('@modelcontextprotocol/sdk/types.js');
+    const { McpError, ErrorCode } = await import('@modelcontextprotocol/sdk/types.js');
 
     // --- DC rejection ---
     const dcConfig = { type: 'datacenter', apiEndpoints: {} };
@@ -1225,6 +1228,7 @@ class ZephyrServerTest {
       throw new Error('Expected McpError for datacenter');
     } catch (e) {
       if (!(e instanceof McpError)) throw new Error(`Expected McpError for DC rejection, got: ${e.message}`);
+      if (e.code !== ErrorCode.InvalidRequest) throw new Error(`Expected ErrorCode.InvalidRequest for DC rejection, got: ${e.code}`);
     }
 
     // --- Cloud: bare array response, key+version kept, self dropped ---
@@ -1264,7 +1268,7 @@ class ZephyrServerTest {
 
   async testGetTestCycleLinksUnit() {
     const { ZephyrToolHandlers } = await import('../build/tool-handlers.js');
-    const { McpError } = await import('@modelcontextprotocol/sdk/types.js');
+    const { McpError, ErrorCode } = await import('@modelcontextprotocol/sdk/types.js');
 
     // --- DC rejection ---
     const dcConfig = { type: 'datacenter', apiEndpoints: { testrun: '/rest/atm/1.0/testrun' } };
@@ -1274,6 +1278,7 @@ class ZephyrServerTest {
       throw new Error('Expected McpError for datacenter');
     } catch (e) {
       if (!(e instanceof McpError)) throw new Error(`Expected McpError for DC rejection, got: ${e.message}`);
+      if (e.code !== ErrorCode.InvalidRequest) throw new Error(`Expected ErrorCode.InvalidRequest for DC rejection, got: ${e.code}`);
     }
 
     // --- Cloud: issues + webLinks + testPlans all shaped ---
@@ -1319,7 +1324,7 @@ class ZephyrServerTest {
 
   async testCreateTestCycleWebLinkUnit() {
     const { ZephyrToolHandlers } = await import('../build/tool-handlers.js');
-    const { McpError } = await import('@modelcontextprotocol/sdk/types.js');
+    const { McpError, ErrorCode } = await import('@modelcontextprotocol/sdk/types.js');
 
     // --- DC rejection ---
     const dcConfig = { type: 'datacenter', apiEndpoints: { testrun: '/rest/atm/1.0/testrun' } };
@@ -1329,6 +1334,7 @@ class ZephyrServerTest {
       throw new Error('Expected McpError for datacenter');
     } catch (e) {
       if (!(e instanceof McpError)) throw new Error(`Expected McpError for DC rejection, got: ${e.message}`);
+      if (e.code !== ErrorCode.InvalidRequest) throw new Error(`Expected ErrorCode.InvalidRequest for DC rejection, got: ${e.code}`);
     }
 
     // --- Cloud: with description ---
@@ -1367,7 +1373,7 @@ class ZephyrServerTest {
 
   async testCreateTestCycleIssueLinkUnit() {
     const { ZephyrToolHandlers } = await import('../build/tool-handlers.js');
-    const { McpError } = await import('@modelcontextprotocol/sdk/types.js');
+    const { McpError, ErrorCode } = await import('@modelcontextprotocol/sdk/types.js');
 
     // --- DC rejection ---
     const dcConfig = { type: 'datacenter', apiEndpoints: { testrun: '/rest/atm/1.0/testrun' } };
@@ -1377,6 +1383,7 @@ class ZephyrServerTest {
       throw new Error('Expected McpError for datacenter');
     } catch (e) {
       if (!(e instanceof McpError)) throw new Error(`Expected McpError for DC rejection, got: ${e.message}`);
+      if (e.code !== ErrorCode.InvalidRequest) throw new Error(`Expected ErrorCode.InvalidRequest for DC rejection, got: ${e.code}`);
     }
 
     // --- Cloud: issue key resolved, then POSTed ---
@@ -1422,7 +1429,7 @@ class ZephyrServerTest {
 
   async testGetTestCyclesLinkedToIssueUnit() {
     const { ZephyrToolHandlers } = await import('../build/tool-handlers.js');
-    const { McpError } = await import('@modelcontextprotocol/sdk/types.js');
+    const { McpError, ErrorCode } = await import('@modelcontextprotocol/sdk/types.js');
 
     // --- DC rejection ---
     const dcConfig = { type: 'datacenter', apiEndpoints: {} };
@@ -1432,6 +1439,7 @@ class ZephyrServerTest {
       throw new Error('Expected McpError for datacenter');
     } catch (e) {
       if (!(e instanceof McpError)) throw new Error(`Expected McpError for DC rejection, got: ${e.message}`);
+      if (e.code !== ErrorCode.InvalidRequest) throw new Error(`Expected ErrorCode.InvalidRequest for DC rejection, got: ${e.code}`);
     }
 
     // --- Cloud: bare array of IDs, self dropped ---
@@ -1464,7 +1472,7 @@ class ZephyrServerTest {
 
   async testGetTestExecutionLinksUnit() {
     const { ZephyrToolHandlers } = await import('../build/tool-handlers.js');
-    const { McpError } = await import('@modelcontextprotocol/sdk/types.js');
+    const { McpError, ErrorCode } = await import('@modelcontextprotocol/sdk/types.js');
 
     // --- DC rejection ---
     const dcConfig = { type: 'datacenter', apiEndpoints: {} };
@@ -1474,6 +1482,7 @@ class ZephyrServerTest {
       throw new Error('Expected McpError for datacenter');
     } catch (e) {
       if (!(e instanceof McpError)) throw new Error(`Expected McpError for DC rejection, got: ${e.message}`);
+      if (e.code !== ErrorCode.InvalidRequest) throw new Error(`Expected ErrorCode.InvalidRequest for DC rejection, got: ${e.code}`);
     }
 
     // --- Cloud: only issues, no webLinks key ---
@@ -1508,7 +1517,7 @@ class ZephyrServerTest {
 
   async testCreateTestExecutionIssueLinkUnit() {
     const { ZephyrToolHandlers } = await import('../build/tool-handlers.js');
-    const { McpError } = await import('@modelcontextprotocol/sdk/types.js');
+    const { McpError, ErrorCode } = await import('@modelcontextprotocol/sdk/types.js');
 
     // --- DC rejection ---
     const dcConfig = { type: 'datacenter', apiEndpoints: {} };
@@ -1518,6 +1527,7 @@ class ZephyrServerTest {
       throw new Error('Expected McpError for datacenter');
     } catch (e) {
       if (!(e instanceof McpError)) throw new Error(`Expected McpError for DC rejection, got: ${e.message}`);
+      if (e.code !== ErrorCode.InvalidRequest) throw new Error(`Expected ErrorCode.InvalidRequest for DC rejection, got: ${e.code}`);
     }
 
     // --- Cloud: issue key resolved, then POSTed to hardcoded /testexecutions/ prefix ---
@@ -1563,7 +1573,7 @@ class ZephyrServerTest {
 
   async testGetTestExecutionsLinkedToIssueUnit() {
     const { ZephyrToolHandlers } = await import('../build/tool-handlers.js');
-    const { McpError } = await import('@modelcontextprotocol/sdk/types.js');
+    const { McpError, ErrorCode } = await import('@modelcontextprotocol/sdk/types.js');
 
     // --- DC rejection ---
     const dcConfig = { type: 'datacenter', apiEndpoints: {} };
@@ -1573,6 +1583,7 @@ class ZephyrServerTest {
       throw new Error('Expected McpError for datacenter');
     } catch (e) {
       if (!(e instanceof McpError)) throw new Error(`Expected McpError for DC rejection, got: ${e.message}`);
+      if (e.code !== ErrorCode.InvalidRequest) throw new Error(`Expected ErrorCode.InvalidRequest for DC rejection, got: ${e.code}`);
     }
 
     // --- Cloud: path uses /executions, not /testexecutions ---
