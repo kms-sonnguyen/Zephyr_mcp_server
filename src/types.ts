@@ -194,3 +194,9 @@ export interface GetTestCasesLinkedToIssueArgs {
 export interface GetTestCycleLinksArgs {
   test_run_key: string;
 }
+
+export interface CreateTestCycleWebLinkArgs {
+  test_run_key: string;
+  url: string;
+  description?: string;
+}

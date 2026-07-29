@@ -773,4 +773,26 @@ export const toolSchemas = [
       required: ['test_run_key'],
     },
   },
+  {
+    name: 'create_test_cycle_web_link',
+    description: 'Create a web link that associates a test cycle with a generic URL. (Cloud only)',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        test_run_key: {
+          type: 'string',
+          description: 'Test cycle key or numeric ID (e.g., PROJ-R123)',
+        },
+        url: {
+          type: 'string',
+          description: 'The web link URL',
+        },
+        description: {
+          type: 'string',
+          description: 'The web link description (optional)',
+        },
+      },
+      required: ['test_run_key', 'url'],
+    },
+  },
 ];

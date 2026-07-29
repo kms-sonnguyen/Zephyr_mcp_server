@@ -158,6 +158,7 @@ The server provides access to various resources through URI schemes:
 - `create_test_case_issue_link`: Create a Jira issue link that associates a test case with a Jira issue. *(Cloud only)*
 - `get_test_cases_linked_to_issue`: Get test case keys and versions linked to a given Jira issue. *(Cloud only)*
 - `get_test_cycle_links`: Get all links (Jira issue links, web links, and test plan links) associated with a test cycle. *(Cloud only)*
+- `create_test_cycle_web_link`: Create a web link that associates a test cycle with a generic URL. *(Cloud only)*
 
 ## Usage Examples
 
