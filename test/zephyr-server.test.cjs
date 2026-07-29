@@ -1462,6 +1462,50 @@ class ZephyrServerTest {
     if (!indexContent.includes('getTestCyclesLinkedToIssue(args')) throw new Error('build/index.js does not call toolHandlers.getTestCyclesLinkedToIssue(...)');
   }
 
+  async testGetTestExecutionLinksUnit() {
+    const { ZephyrToolHandlers } = await import('../build/tool-handlers.js');
+    const { McpError } = await import('@modelcontextprotocol/sdk/types.js');
+
+    // --- DC rejection ---
+    const dcConfig = { type: 'datacenter', apiEndpoints: {} };
+    const dcHandlers = new ZephyrToolHandlers({}, dcConfig);
+    try {
+      await dcHandlers.getTestExecutionLinks({ execution_id: '5805255' });
+      throw new Error('Expected McpError for datacenter');
+    } catch (e) {
+      if (!(e instanceof McpError)) throw new Error(`Expected McpError for DC rejection, got: ${e.message}`);
+    }
+
+    // --- Cloud: only issues, no webLinks key ---
+    const cloudConfig = { type: 'cloud', apiEndpoints: {} };
+    const requests = [];
+    const mockAxios = {
+      get: async (url) => {
+        requests.push(url);
+        return {
+          data: {
+            issues: [{ id: 1, issueId: 10100, type: 'COVERAGE', target: 'https://x/rest/api/2/issue/10100', self: 'https://x/links/1' }],
+          },
+        };
+      },
+    };
+    const cloudHandlers = new ZephyrToolHandlers(mockAxios, cloudConfig);
+    const result = await cloudHandlers.getTestExecutionLinks({ execution_id: 'PROJ-E123' });
+    if (requests[0] !== '/testexecutions/PROJ-E123/links') throw new Error(`Expected GET /testexecutions/PROJ-E123/links, got ${requests[0]}`);
+    const payload = JSON.parse(result.content[0].text);
+    if (payload.issues[0].issueId !== 10100) throw new Error('Expected issueId 10100');
+    if ('webLinks' in payload) throw new Error('webLinks key should not appear — test executions do not support web links');
+
+    // --- Schema and dispatch wiring ---
+    const fs = require('fs');
+    const path = require('path');
+    const schemaContent = fs.readFileSync(path.join(__dirname, '../build/tool-schemas.js'), 'utf8');
+    if (!schemaContent.includes("name: 'get_test_execution_links'")) throw new Error("'get_test_execution_links' not found in built tool-schemas.js");
+    const indexContent = fs.readFileSync(path.join(__dirname, '../build/index.js'), 'utf8');
+    if (!indexContent.includes(`case 'get_test_execution_links':`)) throw new Error("build/index.js does not dispatch 'get_test_execution_links'");
+    if (!indexContent.includes('getTestExecutionLinks(args')) throw new Error('build/index.js does not call toolHandlers.getTestExecutionLinks(...)');
+  }
+
   /**
    * Run all tests
    */
@@ -1493,6 +1537,7 @@ class ZephyrServerTest {
     await this.runTest('create_test_cycle_web_link Unit Tests', () => this.testCreateTestCycleWebLinkUnit());
     await this.runTest('create_test_cycle_issue_link Unit Tests', () => this.testCreateTestCycleIssueLinkUnit());
     await this.runTest('get_test_cycles_linked_to_issue Unit Tests', () => this.testGetTestCyclesLinkedToIssueUnit());
+    await this.runTest('get_test_execution_links Unit Tests', () => this.testGetTestExecutionLinksUnit());
 
     // Print summary
     console.log('\n' + '=' .repeat(60));

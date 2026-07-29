@@ -209,3 +209,7 @@ export interface CreateTestCycleIssueLinkArgs {
 export interface GetTestCyclesLinkedToIssueArgs {
   issue_key: string;
 }
+
+export interface GetTestExecutionLinksArgs {
+  execution_id: string;
+}

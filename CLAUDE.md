@@ -130,6 +130,7 @@ All tools are defined in `tool-schemas.ts` and implemented in `tool-handlers.ts`
 - `create_test_cycle_web_link` — Cloud only; `POST /testcycles/{key}/links/weblinks`
 - `create_test_cycle_issue_link` — Cloud only; resolves `issue_key` → numeric `issueId`, then `POST /testcycles/{key}/links/issues`
 - `get_test_cycles_linked_to_issue` — Cloud only; `GET /issuelinks/{issueKey}/testcycles`, returns `{ id }` only (no `key` — API asymmetry vs. test cases)
+- `get_test_execution_links` — Cloud only; `GET /testexecutions/{id}/links` (hardcoded prefix, no `apiEndpoints` key); response has `issues` only, no `webLinks`
 
 ---
 

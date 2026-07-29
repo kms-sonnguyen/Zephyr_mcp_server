@@ -827,4 +827,18 @@ export const toolSchemas = [
       required: ['issue_key'],
     },
   },
+  {
+    name: 'get_test_execution_links',
+    description: 'Get Jira issue links associated with a test execution. Test executions do not support web links. (Cloud only)',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        execution_id: {
+          type: 'string',
+          description: 'Test execution ID or key (e.g., 5805255 or PROJ-E123)',
+        },
+      },
+      required: ['execution_id'],
+    },
+  },
 ];

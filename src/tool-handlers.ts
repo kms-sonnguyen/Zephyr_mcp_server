@@ -27,6 +27,7 @@ import {
   CreateTestCycleWebLinkArgs,
   CreateTestCycleIssueLinkArgs,
   GetTestCyclesLinkedToIssueArgs,
+  GetTestExecutionLinksArgs,
   JiraConfig
 } from './types.js';
 import { convertToGherkin, resolveFolderIdByPath, getAccountIdFromApiKey } from './utils.js';
@@ -1971,6 +1972,37 @@ export class ZephyrToolHandlers {
     } catch (error) {
       if (error instanceof McpError) throw error;
       throw new McpError(ErrorCode.InternalError, `Failed to get test cycles linked to issue: ${this.formatError(error)}`);
+    }
+  }
+
+  async getTestExecutionLinks(args: GetTestExecutionLinksArgs) {
+    if (this.jiraConfig.type === 'datacenter') {
+      throw new McpError(
+        ErrorCode.InvalidRequest,
+        'get_test_execution_links is only supported on Zephyr Scale Cloud. The Data Center API (v1) does not expose a /links endpoint.'
+      );
+    }
+
+    const { execution_id } = args;
+
+    try {
+      const response = await this.axiosInstance.get(`/testexecutions/${execution_id}/links`);
+      const data = response.data;
+      const issues: any[] = Array.isArray(data?.issues) ? data.issues : [];
+
+      return {
+        content: [{
+          type: 'text',
+          text: JSON.stringify({
+            issues: issues.map((i: any) => ({
+              id: i.id, issueId: i.issueId, type: i.type, target: i.target, self: i.self,
+            })),
+          }, null, 2),
+        }],
+      };
+    } catch (error) {
+      if (error instanceof McpError) throw error;
+      throw new McpError(ErrorCode.InternalError, `Failed to get test execution links: ${this.formatError(error)}`);
     }
   }
 
