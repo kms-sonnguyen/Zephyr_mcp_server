@@ -95,6 +95,7 @@ All tools are defined in `tool-schemas.ts` and implemented in `tool-handlers.ts`
 - `get_test_case` — fetch by key (e.g., `PROJ-T123`)
 - `create_test_case` — create with `STEP_BY_STEP`, `PLAIN_TEXT`, or `BDD` script; always sets `status: "Draft"`
 - `update_test_case_bdd` — PUT update preserving all existing fields, replacing only the BDD script
+- `update_test_case_custom_fields` — PUT update merging given `custom_fields` into the existing `customFields` object; fields not mentioned are preserved
 - `delete_test_case` — DELETE, expects 204
 
 ### Test Scripts
@@ -161,6 +162,7 @@ If conversion yields empty output, the original content is used as fallback.
 ## Key Implementation Notes
 
 - **`update_test_case_bdd`**: First GETs the existing test case, then PUTs a full payload back. Required fields (`projectKey`, `name`, `status`, `priority`) must exist on the fetched data or it throws. All other fields are preserved.
+- **`update_test_case_custom_fields`**: Same GET-then-PUT pattern as `update_test_case_bdd`, but merges the caller's `custom_fields` into the existing `customFields` object (`{ ...existing, ...given }`) instead of replacing it wholesale — fields not mentioned in the call keep their current value. DC's PUT is full-replace, so the DC path also re-sends the existing `testScript` to avoid clearing it.
 - **`create_test_case`**: The `status` parameter is accepted in the schema but always overridden to `"Draft"` in the handler (line 98 of `tool-handlers.ts`).
 - **`search_test_runs`**: Uses a different endpoint for Cloud vs. Data Center (hardcoded in handler, not in `jiraConfig.apiEndpoints`).
 - **`get_test_execution`**: Requires `test_run_keys` — will not do open-ended searches.

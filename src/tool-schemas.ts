@@ -173,6 +173,24 @@ export const toolSchemas = [
     },
   },
   {
+    name: 'update_test_case_custom_fields',
+    description: 'Update one or more custom field values on an existing test case. Merges the given fields into the existing customFields object — fields not mentioned are left untouched. Use the zephyr://testcase/EXISTING-KEY resource to see current custom field names/values.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        test_case_key: {
+          type: 'string',
+          description: 'Test case key to update',
+        },
+        custom_fields: {
+          type: 'object',
+          description: 'Custom field name/value pairs to set. Only the keys provided are changed; existing custom fields not mentioned here are preserved. Example: {"Risk Control": true, "Execution Type": "Manual - To Be Automated"}',
+        },
+      },
+      required: ['test_case_key', 'custom_fields'],
+    },
+  },
+  {
     name: 'create_folder',
     description: 'Create a new folder in Zephyr Scale. On Cloud: provide a path like "/Parent/Child" — the server resolves parent segments and creates the leaf folder. On Data Center: the full path is sent directly.',
     inputSchema: {

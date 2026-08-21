@@ -4,6 +4,7 @@ import { McpError, ErrorCode } from '@modelcontextprotocol/sdk/types.js';
 import {
   TestCaseArgs,
   UpdateBddArgs,
+  UpdateCustomFieldsArgs,
   FolderArgs,
   TestRunArgs,
   SearchTestCasesArgs,
@@ -433,6 +434,108 @@ export class ZephyrToolHandlers {
     } catch (error) {
       if (error instanceof McpError) throw error;
       throw new McpError(ErrorCode.InternalError, `Failed to update test case BDD: ${this.formatError(error)}`);
+    }
+  }
+
+  async updateTestCaseCustomFields(args: UpdateCustomFieldsArgs) {
+    if (this.jiraConfig.type === 'cloud') {
+      return this.updateTestCaseCustomFieldsCloud(args);
+    }
+    return this.updateTestCaseCustomFieldsDC(args);
+  }
+
+  private async updateTestCaseCustomFieldsCloud(args: UpdateCustomFieldsArgs) {
+    const { test_case_key, custom_fields } = args;
+
+    try {
+      const getResponse = await this.axiosInstance.get(`${this.jiraConfig.apiEndpoints.testcase}/${test_case_key}`);
+      const tc = getResponse.data;
+
+      const mergedCustomFields = { ...(tc.customFields ?? {}), ...custom_fields };
+
+      const payload: any = {
+        id: tc.id,
+        key: test_case_key,
+        name: tc.name,
+        status: tc.status,
+        priority: tc.priority,
+        project: tc.project,
+        customFields: mergedCustomFields,
+      };
+      for (const field of ['objective', 'precondition', 'estimatedTime', 'component', 'owner', 'folder']) {
+        if (tc[field] !== undefined && tc[field] !== null) payload[field] = tc[field];
+      }
+      if (Array.isArray(tc.labels) && tc.labels.length > 0) payload.labels = tc.labels;
+
+      await this.axiosInstance.put(`${this.jiraConfig.apiEndpoints.testcase}/${test_case_key}`, payload);
+
+      return {
+        content: [{
+          type: 'text',
+          text: `✅ Updated custom fields on ${test_case_key} (Cloud v2)\nChanged: ${JSON.stringify(custom_fields, null, 2)}`,
+        }],
+      };
+    } catch (error) {
+      if (error instanceof McpError) throw error;
+      throw new McpError(ErrorCode.InternalError, `Failed to update test case custom fields: ${this.formatError(error)}`);
+    }
+  }
+
+  private async updateTestCaseCustomFieldsDC(args: UpdateCustomFieldsArgs) {
+    const { test_case_key, custom_fields } = args;
+
+    try {
+      const getResponse = await this.axiosInstance.get(`${this.jiraConfig.apiEndpoints.testcase}/${test_case_key}`);
+      const testCaseData = getResponse.data;
+
+      const mergedCustomFields = { ...(testCaseData.customFields ?? {}), ...custom_fields };
+
+      const payload: any = {};
+      const projectKey = testCaseData.projectKey ?? test_case_key.replace(/-T\d+$/, '');
+      const requiredFields: Array<[string, any]> = [
+        ['projectKey', projectKey],
+        ['name', testCaseData.name],
+        ['status', testCaseData.status],
+        ['priority', testCaseData.priority]
+      ];
+      for (const [field, value] of requiredFields) {
+        if (value === undefined || value === null || value === '') {
+          throw new McpError(ErrorCode.InternalError,
+            `Existing test case is missing required field '${field}' needed for update.`);
+        }
+        payload[field] = value;
+      }
+
+      for (const field of ['objective', 'precondition', 'folder', 'component', 'owner', 'estimatedTime']) {
+        if (testCaseData[field] !== undefined) payload[field] = testCaseData[field];
+      }
+      if (Array.isArray(testCaseData.labels)) payload.labels = testCaseData.labels;
+      payload.customFields = mergedCustomFields;
+      if (testCaseData.parameters) payload.parameters = testCaseData.parameters;
+      if (Array.isArray(testCaseData.issueLinks)) {
+        payload.issueLinks = testCaseData.issueLinks;
+      } else if (testCaseData.issueKey) {
+        payload.issueLinks = [testCaseData.issueKey];
+      }
+      if (testCaseData.testScript) payload.testScript = testCaseData.testScript;
+
+      const updateResponse = await this.axiosInstance.put(
+        `${this.jiraConfig.apiEndpoints.testcase}/${test_case_key}`, payload
+      );
+
+      if (updateResponse.status !== 200) {
+        throw new Error(`Failed to update ${test_case_key}: ${updateResponse.status}`);
+      }
+
+      return {
+        content: [{
+          type: 'text',
+          text: `✅ Updated custom fields on ${test_case_key}\nChanged: ${JSON.stringify(custom_fields, null, 2)}`,
+        }],
+      };
+    } catch (error) {
+      if (error instanceof McpError) throw error;
+      throw new McpError(ErrorCode.InternalError, `Failed to update test case custom fields: ${this.formatError(error)}`);
     }
   }
 

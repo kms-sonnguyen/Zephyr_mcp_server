@@ -1613,6 +1613,103 @@ class ZephyrServerTest {
     if (!indexContent.includes('getTestExecutionsLinkedToIssue(args')) throw new Error('build/index.js does not call toolHandlers.getTestExecutionsLinkedToIssue(...)');
   }
 
+  async testUpdateTestCaseCustomFieldsUnit() {
+    const { ZephyrToolHandlers } = await import('../build/tool-handlers.js');
+
+    // --- Cloud: merges given custom_fields into existing customFields, preserves the rest ---
+    const cloudConfig = {
+      type: 'cloud',
+      apiEndpoints: { testcase: 'https://api.zephyrscale.smartbear.com/v2/testcases' }
+    };
+    const cloudPuts = [];
+    const cloudMockAxios = {
+      get: async (url) => {
+        return {
+          data: {
+            id: 42,
+            name: 'Existing test case',
+            status: { id: 1, name: 'Draft' },
+            priority: { id: 2, name: 'Normal' },
+            project: { id: 100 },
+            labels: ['smoke'],
+            customFields: { Type: 'Functional', Regression: false, 'Risk Control': false },
+          },
+        };
+      },
+      put: async (url, body) => {
+        cloudPuts.push({ url, body });
+        return { data: {} };
+      },
+    };
+    const cloudHandlers = new ZephyrToolHandlers(cloudMockAxios, cloudConfig);
+    const cloudResult = await cloudHandlers.updateTestCaseCustomFields({
+      test_case_key: 'PROJ-T1',
+      custom_fields: { 'Risk Control': true },
+    });
+    if (cloudPuts.length !== 1) throw new Error(`Expected 1 PUT, got ${cloudPuts.length}`);
+    if (cloudPuts[0].url !== 'https://api.zephyrscale.smartbear.com/v2/testcases/PROJ-T1') {
+      throw new Error(`Unexpected PUT url: ${cloudPuts[0].url}`);
+    }
+    const cloudCustomFields = cloudPuts[0].body.customFields;
+    if (cloudCustomFields['Risk Control'] !== true) throw new Error('Expected Risk Control to be updated to true');
+    if (cloudCustomFields.Type !== 'Functional') throw new Error('Expected untouched Type field to be preserved');
+    if (cloudCustomFields.Regression !== false) throw new Error('Expected untouched Regression field to be preserved');
+    if (cloudPuts[0].body.name !== 'Existing test case') throw new Error('Expected name to be preserved in PUT payload');
+    if (!Array.isArray(cloudPuts[0].body.labels) || cloudPuts[0].body.labels[0] !== 'smoke') {
+      throw new Error('Expected labels to be preserved in PUT payload');
+    }
+    if (!cloudResult.content[0].text.includes('PROJ-T1')) throw new Error('Expected test case key in success message');
+
+    // --- Data Center: merges custom_fields, preserves testScript to avoid wiping it via full-replace PUT ---
+    const dcConfig = {
+      type: 'datacenter',
+      apiEndpoints: { testcase: 'http://dc.example.com/rest/atm/1.0/testcase' }
+    };
+    const dcPuts = [];
+    const dcMockAxios = {
+      get: async (url) => {
+        return {
+          data: {
+            projectKey: 'PROJ',
+            name: 'Existing DC test case',
+            status: 'Draft',
+            priority: 'Normal',
+            labels: ['regression'],
+            customFields: { Type: 'Functional', 'Risk Control': false },
+            testScript: { type: 'PLAIN_TEXT', text: 'Do the thing' },
+          },
+        };
+      },
+      put: async (url, body) => {
+        dcPuts.push({ url, body });
+        return { status: 200, data: {} };
+      },
+    };
+    const dcHandlers = new ZephyrToolHandlers(dcMockAxios, dcConfig);
+    const dcResult = await dcHandlers.updateTestCaseCustomFields({
+      test_case_key: 'PROJ-T2',
+      custom_fields: { 'Risk Control': true },
+    });
+    if (dcPuts.length !== 1) throw new Error(`Expected 1 PUT, got ${dcPuts.length}`);
+    const dcCustomFields = dcPuts[0].body.customFields;
+    if (dcCustomFields['Risk Control'] !== true) throw new Error('Expected Risk Control to be updated to true');
+    if (dcCustomFields.Type !== 'Functional') throw new Error('Expected untouched Type field to be preserved');
+    if (!dcPuts[0].body.testScript || dcPuts[0].body.testScript.text !== 'Do the thing') {
+      throw new Error('Expected existing testScript to be preserved on DC full-replace PUT');
+    }
+    if (dcPuts[0].body.projectKey !== 'PROJ') throw new Error('Expected projectKey in DC PUT payload');
+    if (!dcResult.content[0].text.includes('PROJ-T2')) throw new Error('Expected test case key in success message');
+
+    // --- Schema and dispatch wiring ---
+    const fs = require('fs');
+    const path = require('path');
+    const schemaContent = fs.readFileSync(path.join(__dirname, '../build/tool-schemas.js'), 'utf8');
+    if (!schemaContent.includes("name: 'update_test_case_custom_fields'")) throw new Error("'update_test_case_custom_fields' not found in built tool-schemas.js");
+    const indexContent = fs.readFileSync(path.join(__dirname, '../build/index.js'), 'utf8');
+    if (!indexContent.includes(`case 'update_test_case_custom_fields':`)) throw new Error("build/index.js does not dispatch 'update_test_case_custom_fields'");
+    if (!indexContent.includes('updateTestCaseCustomFields(args')) throw new Error('build/index.js does not call toolHandlers.updateTestCaseCustomFields(...)');
+  }
+
   /**
    * Run all tests
    */
@@ -1647,6 +1744,7 @@ class ZephyrServerTest {
     await this.runTest('get_test_execution_links Unit Tests', () => this.testGetTestExecutionLinksUnit());
     await this.runTest('create_test_execution_issue_link Unit Tests', () => this.testCreateTestExecutionIssueLinkUnit());
     await this.runTest('get_test_executions_linked_to_issue Unit Tests', () => this.testGetTestExecutionsLinkedToIssueUnit());
+    await this.runTest('update_test_case_custom_fields Unit Tests', () => this.testUpdateTestCaseCustomFieldsUnit());
 
     // Print summary
     console.log('\n' + '=' .repeat(60));

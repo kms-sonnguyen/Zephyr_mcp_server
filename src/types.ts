@@ -48,6 +48,11 @@ export interface UpdateBddArgs {
   name?: string;
 }
 
+export interface UpdateCustomFieldsArgs {
+  test_case_key: string;
+  custom_fields: Record<string, any>;
+}
+
 export interface FolderArgs {
   project_key: string;
   name: string; // Full folder path including parent folders (e.g., "/folder/subfolder")
