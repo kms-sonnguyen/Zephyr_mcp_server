@@ -49,6 +49,8 @@ class ZephyrServer {
                         return await this.toolHandlers.createTestCase(args);
                     case 'update_test_case_bdd':
                         return await this.toolHandlers.updateTestCaseBdd(args);
+                    case 'update_test_case_custom_fields':
+                        return await this.toolHandlers.updateTestCaseCustomFields(args);
                     case 'create_folder':
                         return await this.toolHandlers.createFolder(args);
                     case 'get_folders':
