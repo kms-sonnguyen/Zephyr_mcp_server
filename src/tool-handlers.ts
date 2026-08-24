@@ -5,6 +5,7 @@ import {
   TestCaseArgs,
   UpdateBddArgs,
   UpdateCustomFieldsArgs,
+  MoveTestCaseFolderArgs,
   FolderArgs,
   TestRunArgs,
   SearchTestCasesArgs,
@@ -536,6 +537,115 @@ export class ZephyrToolHandlers {
     } catch (error) {
       if (error instanceof McpError) throw error;
       throw new McpError(ErrorCode.InternalError, `Failed to update test case custom fields: ${this.formatError(error)}`);
+    }
+  }
+
+  async moveTestCaseFolder(args: MoveTestCaseFolderArgs) {
+    if (this.jiraConfig.type === 'cloud') {
+      return this.moveTestCaseFolderCloud(args);
+    }
+    return this.moveTestCaseFolderDC(args);
+  }
+
+  private async moveTestCaseFolderCloud(args: MoveTestCaseFolderArgs) {
+    const { test_case_key, folder } = args;
+
+    try {
+      const getResponse = await this.axiosInstance.get(`${this.jiraConfig.apiEndpoints.testcase}/${test_case_key}`);
+      const tc = getResponse.data;
+
+      const projectKey = test_case_key.replace(/-T\d+$/, '');
+      const folderId = await resolveFolderIdByPath(
+        this.axiosInstance, projectKey, folder, 'TEST_CASE'
+      );
+      if (folderId === null) {
+        throw new McpError(ErrorCode.InvalidParams,
+          `Folder not found: "${folder}" in project ${projectKey}. Create it first with create_folder.`);
+      }
+
+      const payload: any = {
+        id: tc.id,
+        key: test_case_key,
+        name: tc.name,
+        status: tc.status,
+        priority: tc.priority,
+        project: tc.project,
+        folderId,
+      };
+      for (const field of ['objective', 'precondition', 'estimatedTime', 'component', 'owner']) {
+        if (tc[field] !== undefined && tc[field] !== null) payload[field] = tc[field];
+      }
+      if (Array.isArray(tc.labels) && tc.labels.length > 0) payload.labels = tc.labels;
+      if (tc.customFields && Object.keys(tc.customFields).length > 0) payload.customFields = tc.customFields;
+
+      await this.axiosInstance.put(`${this.jiraConfig.apiEndpoints.testcase}/${test_case_key}`, payload);
+
+      return {
+        content: [{
+          type: 'text',
+          text: `✅ Moved ${test_case_key} to folder "${folder}" (Cloud v2)`,
+        }],
+      };
+    } catch (error) {
+      if (error instanceof McpError) throw error;
+      throw new McpError(ErrorCode.InternalError, `Failed to move test case folder: ${this.formatError(error)}`);
+    }
+  }
+
+  private async moveTestCaseFolderDC(args: MoveTestCaseFolderArgs) {
+    const { test_case_key, folder } = args;
+
+    try {
+      const getResponse = await this.axiosInstance.get(`${this.jiraConfig.apiEndpoints.testcase}/${test_case_key}`);
+      const testCaseData = getResponse.data;
+
+      const payload: any = {};
+      const projectKey = testCaseData.projectKey ?? test_case_key.replace(/-T\d+$/, '');
+      const requiredFields: Array<[string, any]> = [
+        ['projectKey', projectKey],
+        ['name', testCaseData.name],
+        ['status', testCaseData.status],
+        ['priority', testCaseData.priority]
+      ];
+      for (const [field, value] of requiredFields) {
+        if (value === undefined || value === null || value === '') {
+          throw new McpError(ErrorCode.InternalError,
+            `Existing test case is missing required field '${field}' needed for update.`);
+        }
+        payload[field] = value;
+      }
+
+      payload.folder = folder;
+      for (const field of ['objective', 'precondition', 'component', 'owner', 'estimatedTime']) {
+        if (testCaseData[field] !== undefined) payload[field] = testCaseData[field];
+      }
+      if (Array.isArray(testCaseData.labels)) payload.labels = testCaseData.labels;
+      if (testCaseData.customFields) payload.customFields = testCaseData.customFields;
+      if (testCaseData.parameters) payload.parameters = testCaseData.parameters;
+      if (Array.isArray(testCaseData.issueLinks)) {
+        payload.issueLinks = testCaseData.issueLinks;
+      } else if (testCaseData.issueKey) {
+        payload.issueLinks = [testCaseData.issueKey];
+      }
+      if (testCaseData.testScript) payload.testScript = testCaseData.testScript;
+
+      const updateResponse = await this.axiosInstance.put(
+        `${this.jiraConfig.apiEndpoints.testcase}/${test_case_key}`, payload
+      );
+
+      if (updateResponse.status !== 200) {
+        throw new Error(`Failed to update ${test_case_key}: ${updateResponse.status}`);
+      }
+
+      return {
+        content: [{
+          type: 'text',
+          text: `✅ Moved ${test_case_key} to folder "${folder}"`,
+        }],
+      };
+    } catch (error) {
+      if (error instanceof McpError) throw error;
+      throw new McpError(ErrorCode.InternalError, `Failed to move test case folder: ${this.formatError(error)}`);
     }
   }
 

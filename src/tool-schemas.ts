@@ -191,6 +191,24 @@ export const toolSchemas = [
     },
   },
   {
+    name: 'move_test_case_folder',
+    description: 'Move an existing test case to a different folder. The destination folder must already exist (use create_folder first if needed). All other fields on the test case are preserved.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        test_case_key: {
+          type: 'string',
+          description: 'Test case key to move',
+        },
+        folder: {
+          type: 'string',
+          description: 'Full destination folder path (e.g., "/Parent/Child"). Must already exist.',
+        },
+      },
+      required: ['test_case_key', 'folder'],
+    },
+  },
+  {
     name: 'create_folder',
     description: 'Create a new folder in Zephyr Scale. On Cloud: provide a path like "/Parent/Child" — the server resolves parent segments and creates the leaf folder. On Data Center: the full path is sent directly.',
     inputSchema: {

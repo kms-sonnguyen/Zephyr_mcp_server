@@ -1710,6 +1710,117 @@ class ZephyrServerTest {
     if (!indexContent.includes('updateTestCaseCustomFields(args')) throw new Error('build/index.js does not call toolHandlers.updateTestCaseCustomFields(...)');
   }
 
+  async testMoveTestCaseFolderUnit() {
+    const { ZephyrToolHandlers } = await import('../build/tool-handlers.js');
+    const { McpError } = await import('@modelcontextprotocol/sdk/types.js');
+
+    // --- Cloud: resolves destination path to folderId, preserves other fields ---
+    const cloudConfig = {
+      type: 'cloud',
+      apiEndpoints: { testcase: 'https://api.zephyrscale.smartbear.com/v2/testcases' }
+    };
+    const cloudPuts = [];
+    const cloudMockAxios = {
+      get: async (url, config) => {
+        if (url === '/folders') {
+          return { data: { values: [{ id: 55, parentId: null, name: 'Target' }], isLast: true } };
+        }
+        return {
+          data: {
+            id: 42,
+            name: 'Existing test case',
+            status: { id: 1, name: 'Draft' },
+            priority: { id: 2, name: 'Normal' },
+            project: { id: 100 },
+            labels: ['smoke'],
+            customFields: { Type: 'Functional' },
+          },
+        };
+      },
+      put: async (url, body) => {
+        cloudPuts.push({ url, body });
+        return { data: {} };
+      },
+    };
+    const cloudHandlers = new ZephyrToolHandlers(cloudMockAxios, cloudConfig);
+    const cloudResult = await cloudHandlers.moveTestCaseFolder({
+      test_case_key: 'PROJ-T1',
+      folder: '/Target',
+    });
+    if (cloudPuts.length !== 1) throw new Error(`Expected 1 PUT, got ${cloudPuts.length}`);
+    if (cloudPuts[0].body.folderId !== 55) throw new Error(`Expected folderId 55 in PUT payload, got ${cloudPuts[0].body.folderId}`);
+    if (cloudPuts[0].body.name !== 'Existing test case') throw new Error('Expected name to be preserved in PUT payload');
+    if (!Array.isArray(cloudPuts[0].body.labels) || cloudPuts[0].body.labels[0] !== 'smoke') {
+      throw new Error('Expected labels to be preserved in PUT payload');
+    }
+    if (cloudPuts[0].body.customFields.Type !== 'Functional') throw new Error('Expected customFields to be preserved in PUT payload');
+    if (!cloudResult.content[0].text.includes('PROJ-T1')) throw new Error('Expected test case key in success message');
+    if (!cloudResult.content[0].text.includes('/Target')) throw new Error('Expected destination folder in success message');
+
+    // --- Cloud: destination folder not found raises McpError, no PUT issued ---
+    const cloudMissingFolderAxios = {
+      get: async (url) => {
+        if (url === '/folders') return { data: { values: [], isLast: true } };
+        return { data: { id: 42, name: 'Existing test case', status: {}, priority: {}, project: {} } };
+      },
+      put: async () => { throw new Error('PUT should not be called when folder is not found'); },
+    };
+    const cloudMissingFolderHandlers = new ZephyrToolHandlers(cloudMissingFolderAxios, cloudConfig);
+    try {
+      await cloudMissingFolderHandlers.moveTestCaseFolder({ test_case_key: 'PROJ-T1', folder: '/Nope' });
+      throw new Error('Expected McpError for missing destination folder');
+    } catch (e) {
+      if (!(e instanceof McpError)) throw new Error(`Expected McpError for missing folder, got: ${e.message}`);
+    }
+
+    // --- Data Center: sends full path string, preserves testScript on full-replace PUT ---
+    const dcConfig = {
+      type: 'datacenter',
+      apiEndpoints: { testcase: 'http://dc.example.com/rest/atm/1.0/testcase' }
+    };
+    const dcPuts = [];
+    const dcMockAxios = {
+      get: async (url) => {
+        return {
+          data: {
+            projectKey: 'PROJ',
+            name: 'Existing DC test case',
+            status: 'Draft',
+            priority: 'Normal',
+            labels: ['regression'],
+            customFields: { Type: 'Functional' },
+            testScript: { type: 'PLAIN_TEXT', text: 'Do the thing' },
+          },
+        };
+      },
+      put: async (url, body) => {
+        dcPuts.push({ url, body });
+        return { status: 200, data: {} };
+      },
+    };
+    const dcHandlers = new ZephyrToolHandlers(dcMockAxios, dcConfig);
+    const dcResult = await dcHandlers.moveTestCaseFolder({
+      test_case_key: 'PROJ-T2',
+      folder: '/Parent/Child',
+    });
+    if (dcPuts.length !== 1) throw new Error(`Expected 1 PUT, got ${dcPuts.length}`);
+    if (dcPuts[0].body.folder !== '/Parent/Child') throw new Error(`Expected folder '/Parent/Child' in PUT payload, got ${dcPuts[0].body.folder}`);
+    if (!dcPuts[0].body.testScript || dcPuts[0].body.testScript.text !== 'Do the thing') {
+      throw new Error('Expected existing testScript to be preserved on DC full-replace PUT');
+    }
+    if (dcPuts[0].body.projectKey !== 'PROJ') throw new Error('Expected projectKey in DC PUT payload');
+    if (!dcResult.content[0].text.includes('PROJ-T2')) throw new Error('Expected test case key in success message');
+
+    // --- Schema and dispatch wiring ---
+    const fs = require('fs');
+    const path = require('path');
+    const schemaContent = fs.readFileSync(path.join(__dirname, '../build/tool-schemas.js'), 'utf8');
+    if (!schemaContent.includes("name: 'move_test_case_folder'")) throw new Error("'move_test_case_folder' not found in built tool-schemas.js");
+    const indexContent = fs.readFileSync(path.join(__dirname, '../build/index.js'), 'utf8');
+    if (!indexContent.includes(`case 'move_test_case_folder':`)) throw new Error("build/index.js does not dispatch 'move_test_case_folder'");
+    if (!indexContent.includes('moveTestCaseFolder(args')) throw new Error('build/index.js does not call toolHandlers.moveTestCaseFolder(...)');
+  }
+
   /**
    * Run all tests
    */
@@ -1745,6 +1856,7 @@ class ZephyrServerTest {
     await this.runTest('create_test_execution_issue_link Unit Tests', () => this.testCreateTestExecutionIssueLinkUnit());
     await this.runTest('get_test_executions_linked_to_issue Unit Tests', () => this.testGetTestExecutionsLinkedToIssueUnit());
     await this.runTest('update_test_case_custom_fields Unit Tests', () => this.testUpdateTestCaseCustomFieldsUnit());
+    await this.runTest('move_test_case_folder Unit Tests', () => this.testMoveTestCaseFolderUnit());
 
     // Print summary
     console.log('\n' + '=' .repeat(60));

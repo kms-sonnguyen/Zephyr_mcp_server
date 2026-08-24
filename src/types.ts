@@ -53,6 +53,11 @@ export interface UpdateCustomFieldsArgs {
   custom_fields: Record<string, any>;
 }
 
+export interface MoveTestCaseFolderArgs {
+  test_case_key: string;
+  folder: string; // Full destination folder path (e.g., "/Parent/Child")
+}
+
 export interface FolderArgs {
   project_key: string;
   name: string; // Full folder path including parent folders (e.g., "/folder/subfolder")
