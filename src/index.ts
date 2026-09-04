@@ -73,6 +73,10 @@ class ZephyrServer {
             return await this.toolHandlers.updateTestCaseCustomFields(args as any);
           case 'move_test_case_folder':
             return await this.toolHandlers.moveTestCaseFolder(args as any);
+          case 'update_test_case_name':
+            return await this.toolHandlers.updateTestCaseName(args as any);
+          case 'update_test_case_precondition_objective':
+            return await this.toolHandlers.updateTestCasePreconditionObjective(args as any);
           case 'create_folder':
             return await this.toolHandlers.createFolder(args as any);
           case 'get_folders':

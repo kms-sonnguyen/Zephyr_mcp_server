@@ -1821,6 +1821,262 @@ class ZephyrServerTest {
     if (!indexContent.includes('moveTestCaseFolder(args')) throw new Error('build/index.js does not call toolHandlers.moveTestCaseFolder(...)');
   }
 
+  async testUpdateTestCaseNameUnit() {
+    const { ZephyrToolHandlers } = await import('../build/tool-handlers.js');
+    const { McpError } = await import('@modelcontextprotocol/sdk/types.js');
+
+    // --- Cloud: renames test case, preserves other fields ---
+    const cloudConfig = {
+      type: 'cloud',
+      apiEndpoints: { testcase: 'https://api.zephyrscale.smartbear.com/v2/testcases' }
+    };
+    const cloudPuts = [];
+    const cloudMockAxios = {
+      get: async () => {
+        return {
+          data: {
+            id: 42,
+            name: 'Old name',
+            status: { id: 1, name: 'Draft' },
+            priority: { id: 2, name: 'Normal' },
+            project: { id: 100 },
+            folder: { id: 55, name: 'Target' },
+            labels: ['smoke'],
+            customFields: { Type: 'Functional' },
+          },
+        };
+      },
+      put: async (url, body) => {
+        cloudPuts.push({ url, body });
+        return { data: {} };
+      },
+    };
+    const cloudHandlers = new ZephyrToolHandlers(cloudMockAxios, cloudConfig);
+    const cloudResult = await cloudHandlers.updateTestCaseName({
+      test_case_key: 'PROJ-T1',
+      name: 'New name',
+    });
+    if (cloudPuts.length !== 1) throw new Error(`Expected 1 PUT, got ${cloudPuts.length}`);
+    if (cloudPuts[0].body.name !== 'New name') throw new Error(`Expected name 'New name' in PUT payload, got ${cloudPuts[0].body.name}`);
+    if (cloudPuts[0].body.folderId !== 55) throw new Error(`Expected folderId 55 to be preserved in PUT payload, got ${cloudPuts[0].body.folderId}`);
+    if (!Array.isArray(cloudPuts[0].body.labels) || cloudPuts[0].body.labels[0] !== 'smoke') {
+      throw new Error('Expected labels to be preserved in PUT payload');
+    }
+    if (cloudPuts[0].body.customFields.Type !== 'Functional') throw new Error('Expected customFields to be preserved in PUT payload');
+    if (!cloudResult.content[0].text.includes('PROJ-T1')) throw new Error('Expected test case key in success message');
+    if (!cloudResult.content[0].text.includes('New name')) throw new Error('Expected new name in success message');
+
+    // --- Cloud: empty name raises McpError, no PUT issued ---
+    const cloudEmptyNameHandlers = new ZephyrToolHandlers({
+      get: async () => { throw new Error('GET should not be called when name is empty'); },
+      put: async () => { throw new Error('PUT should not be called when name is empty'); },
+    }, cloudConfig);
+    try {
+      await cloudEmptyNameHandlers.updateTestCaseName({ test_case_key: 'PROJ-T1', name: '   ' });
+      throw new Error('Expected McpError for empty name');
+    } catch (e) {
+      if (!(e instanceof McpError)) throw new Error(`Expected McpError for empty name, got: ${e.message}`);
+    }
+
+    // --- Data Center: renames test case, preserves testScript on full-replace PUT ---
+    const dcConfig = {
+      type: 'datacenter',
+      apiEndpoints: { testcase: 'http://dc.example.com/rest/atm/1.0/testcase' }
+    };
+    const dcPuts = [];
+    const dcMockAxios = {
+      get: async () => {
+        return {
+          data: {
+            projectKey: 'PROJ',
+            name: 'Old DC name',
+            status: 'Draft',
+            priority: 'Normal',
+            folder: '/Parent/Child',
+            labels: ['regression'],
+            customFields: { Type: 'Functional' },
+            testScript: { type: 'PLAIN_TEXT', text: 'Do the thing' },
+          },
+        };
+      },
+      put: async (url, body) => {
+        dcPuts.push({ url, body });
+        return { status: 200, data: {} };
+      },
+    };
+    const dcHandlers = new ZephyrToolHandlers(dcMockAxios, dcConfig);
+    const dcResult = await dcHandlers.updateTestCaseName({
+      test_case_key: 'PROJ-T2',
+      name: 'New DC name',
+    });
+    if (dcPuts.length !== 1) throw new Error(`Expected 1 PUT, got ${dcPuts.length}`);
+    if (dcPuts[0].body.name !== 'New DC name') throw new Error(`Expected name 'New DC name' in PUT payload, got ${dcPuts[0].body.name}`);
+    if (dcPuts[0].body.folder !== '/Parent/Child') throw new Error('Expected folder to be preserved in PUT payload');
+    if (!dcPuts[0].body.testScript || dcPuts[0].body.testScript.text !== 'Do the thing') {
+      throw new Error('Expected existing testScript to be preserved on DC full-replace PUT');
+    }
+    if (dcPuts[0].body.projectKey !== 'PROJ') throw new Error('Expected projectKey in DC PUT payload');
+    if (!dcResult.content[0].text.includes('PROJ-T2')) throw new Error('Expected test case key in success message');
+    if (!dcResult.content[0].text.includes('New DC name')) throw new Error('Expected new name in success message');
+
+    // --- Schema and dispatch wiring ---
+    const fs = require('fs');
+    const path = require('path');
+    const schemaContent = fs.readFileSync(path.join(__dirname, '../build/tool-schemas.js'), 'utf8');
+    if (!schemaContent.includes("name: 'update_test_case_name'")) throw new Error("'update_test_case_name' not found in built tool-schemas.js");
+    const indexContent = fs.readFileSync(path.join(__dirname, '../build/index.js'), 'utf8');
+    if (!indexContent.includes(`case 'update_test_case_name':`)) throw new Error("build/index.js does not dispatch 'update_test_case_name'");
+    if (!indexContent.includes('updateTestCaseName(args')) throw new Error('build/index.js does not call toolHandlers.updateTestCaseName(...)');
+  }
+
+  async testUpdateTestCasePreconditionObjectiveUnit() {
+    const { ZephyrToolHandlers } = await import('../build/tool-handlers.js');
+    const { McpError } = await import('@modelcontextprotocol/sdk/types.js');
+
+    // --- Cloud: updates precondition and objective, preserves other fields ---
+    const cloudConfig = {
+      type: 'cloud',
+      apiEndpoints: { testcase: 'https://api.zephyrscale.smartbear.com/v2/testcases' }
+    };
+    const cloudPuts = [];
+    const cloudMockAxios = {
+      get: async () => {
+        return {
+          data: {
+            id: 42,
+            name: 'Existing test case',
+            status: { id: 1, name: 'Draft' },
+            priority: { id: 2, name: 'Normal' },
+            project: { id: 100 },
+            folder: { id: 55, name: 'Target' },
+            labels: ['smoke'],
+            customFields: { Type: 'Functional' },
+            precondition: 'Old precondition',
+            objective: 'Old objective',
+          },
+        };
+      },
+      put: async (url, body) => {
+        cloudPuts.push({ url, body });
+        return { data: {} };
+      },
+    };
+    const cloudHandlers = new ZephyrToolHandlers(cloudMockAxios, cloudConfig);
+    const cloudResult = await cloudHandlers.updateTestCasePreconditionObjective({
+      test_case_key: 'PROJ-T1',
+      precondition: 'New precondition',
+      objective: 'New objective',
+    });
+    if (cloudPuts.length !== 1) throw new Error(`Expected 1 PUT, got ${cloudPuts.length}`);
+    if (cloudPuts[0].body.precondition !== 'New precondition') throw new Error(`Expected new precondition in PUT payload, got ${cloudPuts[0].body.precondition}`);
+    if (cloudPuts[0].body.objective !== 'New objective') throw new Error(`Expected new objective in PUT payload, got ${cloudPuts[0].body.objective}`);
+    if (cloudPuts[0].body.name !== 'Existing test case') throw new Error('Expected name to be preserved in PUT payload');
+    if (cloudPuts[0].body.folderId !== 55) throw new Error('Expected folderId to be preserved in PUT payload');
+    if (!Array.isArray(cloudPuts[0].body.labels) || cloudPuts[0].body.labels[0] !== 'smoke') {
+      throw new Error('Expected labels to be preserved in PUT payload');
+    }
+    if (cloudPuts[0].body.customFields.Type !== 'Functional') throw new Error('Expected customFields to be preserved in PUT payload');
+    if (!cloudResult.content[0].text.includes('PROJ-T1')) throw new Error('Expected test case key in success message');
+
+    // --- Cloud: only objective given, existing precondition preserved unchanged ---
+    const cloudPartialPuts = [];
+    const cloudPartialMockAxios = {
+      get: async () => {
+        return {
+          data: {
+            id: 42,
+            name: 'Existing test case',
+            status: { id: 1, name: 'Draft' },
+            priority: { id: 2, name: 'Normal' },
+            project: { id: 100 },
+            precondition: 'Untouched precondition',
+            objective: 'Old objective',
+          },
+        };
+      },
+      put: async (url, body) => {
+        cloudPartialPuts.push({ url, body });
+        return { data: {} };
+      },
+    };
+    const cloudPartialHandlers = new ZephyrToolHandlers(cloudPartialMockAxios, cloudConfig);
+    await cloudPartialHandlers.updateTestCasePreconditionObjective({
+      test_case_key: 'PROJ-T1',
+      objective: 'New objective only',
+    });
+    if (cloudPartialPuts[0].body.precondition !== 'Untouched precondition') {
+      throw new Error(`Expected existing precondition to be preserved, got ${cloudPartialPuts[0].body.precondition}`);
+    }
+    if (cloudPartialPuts[0].body.objective !== 'New objective only') {
+      throw new Error(`Expected new objective in PUT payload, got ${cloudPartialPuts[0].body.objective}`);
+    }
+
+    // --- Cloud: neither field given raises McpError, no GET/PUT issued ---
+    const cloudMissingFieldsHandlers = new ZephyrToolHandlers({
+      get: async () => { throw new Error('GET should not be called when neither field is given'); },
+      put: async () => { throw new Error('PUT should not be called when neither field is given'); },
+    }, cloudConfig);
+    try {
+      await cloudMissingFieldsHandlers.updateTestCasePreconditionObjective({ test_case_key: 'PROJ-T1' });
+      throw new Error('Expected McpError when neither precondition nor objective is given');
+    } catch (e) {
+      if (!(e instanceof McpError)) throw new Error(`Expected McpError for missing fields, got: ${e.message}`);
+    }
+
+    // --- Data Center: updates precondition/objective, preserves testScript on full-replace PUT ---
+    const dcConfig = {
+      type: 'datacenter',
+      apiEndpoints: { testcase: 'http://dc.example.com/rest/atm/1.0/testcase' }
+    };
+    const dcPuts = [];
+    const dcMockAxios = {
+      get: async () => {
+        return {
+          data: {
+            projectKey: 'PROJ',
+            name: 'Existing DC test case',
+            status: 'Draft',
+            priority: 'Normal',
+            folder: '/Parent/Child',
+            labels: ['regression'],
+            customFields: { Type: 'Functional' },
+            precondition: 'Old precondition',
+            objective: 'Old objective',
+            testScript: { type: 'PLAIN_TEXT', text: 'Do the thing' },
+          },
+        };
+      },
+      put: async (url, body) => {
+        dcPuts.push({ url, body });
+        return { status: 200, data: {} };
+      },
+    };
+    const dcHandlers = new ZephyrToolHandlers(dcMockAxios, dcConfig);
+    const dcResult = await dcHandlers.updateTestCasePreconditionObjective({
+      test_case_key: 'PROJ-T2',
+      precondition: 'New DC precondition',
+      objective: 'New DC objective',
+    });
+    if (dcPuts.length !== 1) throw new Error(`Expected 1 PUT, got ${dcPuts.length}`);
+    if (dcPuts[0].body.precondition !== 'New DC precondition') throw new Error(`Expected new precondition in PUT payload, got ${dcPuts[0].body.precondition}`);
+    if (dcPuts[0].body.objective !== 'New DC objective') throw new Error(`Expected new objective in PUT payload, got ${dcPuts[0].body.objective}`);
+    if (dcPuts[0].body.folder !== '/Parent/Child') throw new Error('Expected folder to be preserved in PUT payload');
+    if (!dcPuts[0].body.testScript || dcPuts[0].body.testScript.text !== 'Do the thing') {
+      throw new Error('Expected existing testScript to be preserved on DC full-replace PUT');
+    }
+    if (dcPuts[0].body.projectKey !== 'PROJ') throw new Error('Expected projectKey in DC PUT payload');
+    if (!dcResult.content[0].text.includes('PROJ-T2')) throw new Error('Expected test case key in success message');
+
+    // --- Schema and dispatch wiring ---
+    const fs = require('fs');
+    const path = require('path');
+    const schemaContent = fs.readFileSync(path.join(__dirname, '../build/tool-schemas.js'), 'utf8');
+    if (!schemaContent.includes("name: 'update_test_case_precondition_objective'")) throw new Error("'update_test_case_precondition_objective' not found in built tool-schemas.js");
+    const indexContent = fs.readFileSync(path.join(__dirname, '../build/index.js'), 'utf8');
+    if (!indexContent.includes(`case 'update_test_case_precondition_objective':`)) throw new Error("build/index.js does not dispatch 'update_test_case_precondition_objective'");
+    if (!indexContent.includes('updateTestCasePreconditionObjective(args')) throw new Error('build/index.js does not call toolHandlers.updateTestCasePreconditionObjective(...)');
+  }
+
   /**
    * Run all tests
    */
@@ -1857,6 +2113,8 @@ class ZephyrServerTest {
     await this.runTest('get_test_executions_linked_to_issue Unit Tests', () => this.testGetTestExecutionsLinkedToIssueUnit());
     await this.runTest('update_test_case_custom_fields Unit Tests', () => this.testUpdateTestCaseCustomFieldsUnit());
     await this.runTest('move_test_case_folder Unit Tests', () => this.testMoveTestCaseFolderUnit());
+    await this.runTest('update_test_case_name Unit Tests', () => this.testUpdateTestCaseNameUnit());
+    await this.runTest('update_test_case_precondition_objective Unit Tests', () => this.testUpdateTestCasePreconditionObjectiveUnit());
 
     // Print summary
     console.log('\n' + '=' .repeat(60));

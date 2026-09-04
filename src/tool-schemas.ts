@@ -209,6 +209,46 @@ export const toolSchemas = [
     },
   },
   {
+    name: 'update_test_case_name',
+    description: 'Rename an existing test case. All other fields on the test case are preserved.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        test_case_key: {
+          type: 'string',
+          description: 'Test case key to rename',
+        },
+        name: {
+          type: 'string',
+          description: 'New test case name',
+        },
+      },
+      required: ['test_case_key', 'name'],
+    },
+  },
+  {
+    name: 'update_test_case_precondition_objective',
+    description: 'Update the precondition and/or objective on an existing test case. Provide at least one of precondition/objective; the other is preserved if omitted. All other fields on the test case are preserved.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        test_case_key: {
+          type: 'string',
+          description: 'Test case key to update',
+        },
+        precondition: {
+          type: 'string',
+          description: 'New precondition text (optional)',
+        },
+        objective: {
+          type: 'string',
+          description: 'New objective text (optional)',
+        },
+      },
+      required: ['test_case_key'],
+    },
+  },
+  {
     name: 'create_folder',
     description: 'Create a new folder in Zephyr Scale. On Cloud: provide a path like "/Parent/Child" — the server resolves parent segments and creates the leaf folder. On Data Center: the full path is sent directly.',
     inputSchema: {

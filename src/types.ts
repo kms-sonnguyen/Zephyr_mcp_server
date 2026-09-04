@@ -58,6 +58,17 @@ export interface MoveTestCaseFolderArgs {
   folder: string; // Full destination folder path (e.g., "/Parent/Child")
 }
 
+export interface UpdateTestCaseNameArgs {
+  test_case_key: string;
+  name: string; // New test case name
+}
+
+export interface UpdateTestCasePreconditionObjectiveArgs {
+  test_case_key: string;
+  precondition?: string;
+  objective?: string;
+}
+
 export interface FolderArgs {
   project_key: string;
   name: string; // Full folder path including parent folders (e.g., "/folder/subfolder")

@@ -124,6 +124,8 @@ The server provides access to various resources through URI schemes:
 - `update_test_case_bdd`: Update an existing test case with BDD content (optionally update the test case name).
 - `update_test_case_custom_fields`: Update one or more custom field values on an existing test case. Merges the given fields into the existing `customFields` object — fields not mentioned are left untouched.
 - `move_test_case_folder`: Move an existing test case to a different folder. The destination folder must already exist (use `create_folder` first if needed). All other fields on the test case are preserved.
+- `update_test_case_name`: Rename an existing test case. All other fields on the test case are preserved.
+- `update_test_case_precondition_objective`: Update the precondition and/or objective on an existing test case. Provide at least one; the other is preserved if omitted. All other fields on the test case are preserved.
 - `get_test_case_steps`: Get the STEP_BY_STEP test steps for a test case, with pagination. *(Cloud only)*
 - `update_test_case_steps`: Append or overwrite STEP_BY_STEP test steps on an existing test case. Supports inline steps and call-to-test references. *(Cloud only)*
 
