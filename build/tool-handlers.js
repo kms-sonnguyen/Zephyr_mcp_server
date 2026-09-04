@@ -582,6 +582,218 @@ export class ZephyrToolHandlers {
             throw new McpError(ErrorCode.InternalError, `Failed to move test case folder: ${this.formatError(error)}`);
         }
     }
+    async updateTestCaseName(args) {
+        if (this.jiraConfig.type === 'cloud') {
+            return this.updateTestCaseNameCloud(args);
+        }
+        return this.updateTestCaseNameDC(args);
+    }
+    async updateTestCaseNameCloud(args) {
+        const { test_case_key, name } = args;
+        if (typeof name !== 'string' || name.trim().length === 0) {
+            throw new McpError(ErrorCode.InvalidParams, 'name must be a non-empty string');
+        }
+        try {
+            const getResponse = await this.axiosInstance.get(`${this.jiraConfig.apiEndpoints.testcase}/${test_case_key}`);
+            const tc = getResponse.data;
+            const payload = {
+                id: tc.id,
+                key: test_case_key,
+                name,
+                status: tc.status,
+                priority: tc.priority,
+                project: tc.project,
+            };
+            if (tc.folder?.id !== undefined && tc.folder?.id !== null)
+                payload.folderId = tc.folder.id;
+            for (const field of ['objective', 'precondition', 'estimatedTime', 'component', 'owner']) {
+                if (tc[field] !== undefined && tc[field] !== null)
+                    payload[field] = tc[field];
+            }
+            if (Array.isArray(tc.labels) && tc.labels.length > 0)
+                payload.labels = tc.labels;
+            if (tc.customFields && Object.keys(tc.customFields).length > 0)
+                payload.customFields = tc.customFields;
+            await this.axiosInstance.put(`${this.jiraConfig.apiEndpoints.testcase}/${test_case_key}`, payload);
+            return {
+                content: [{
+                        type: 'text',
+                        text: `✅ Renamed ${test_case_key} to "${name}" (Cloud v2)`,
+                    }],
+            };
+        }
+        catch (error) {
+            if (error instanceof McpError)
+                throw error;
+            throw new McpError(ErrorCode.InternalError, `Failed to update test case name: ${this.formatError(error)}`);
+        }
+    }
+    async updateTestCaseNameDC(args) {
+        const { test_case_key, name } = args;
+        if (typeof name !== 'string' || name.trim().length === 0) {
+            throw new McpError(ErrorCode.InvalidParams, 'name must be a non-empty string');
+        }
+        try {
+            const getResponse = await this.axiosInstance.get(`${this.jiraConfig.apiEndpoints.testcase}/${test_case_key}`);
+            const testCaseData = getResponse.data;
+            const payload = {};
+            const projectKey = testCaseData.projectKey ?? test_case_key.replace(/-T\d+$/, '');
+            const requiredFields = [
+                ['projectKey', projectKey],
+                ['name', name],
+                ['status', testCaseData.status],
+                ['priority', testCaseData.priority]
+            ];
+            for (const [field, value] of requiredFields) {
+                if (value === undefined || value === null || value === '') {
+                    throw new McpError(ErrorCode.InternalError, `Existing test case is missing required field '${field}' needed for update.`);
+                }
+                payload[field] = value;
+            }
+            for (const field of ['objective', 'precondition', 'folder', 'component', 'owner', 'estimatedTime']) {
+                if (testCaseData[field] !== undefined)
+                    payload[field] = testCaseData[field];
+            }
+            if (Array.isArray(testCaseData.labels))
+                payload.labels = testCaseData.labels;
+            if (testCaseData.customFields)
+                payload.customFields = testCaseData.customFields;
+            if (testCaseData.parameters)
+                payload.parameters = testCaseData.parameters;
+            if (Array.isArray(testCaseData.issueLinks)) {
+                payload.issueLinks = testCaseData.issueLinks;
+            }
+            else if (testCaseData.issueKey) {
+                payload.issueLinks = [testCaseData.issueKey];
+            }
+            if (testCaseData.testScript)
+                payload.testScript = testCaseData.testScript;
+            const updateResponse = await this.axiosInstance.put(`${this.jiraConfig.apiEndpoints.testcase}/${test_case_key}`, payload);
+            if (updateResponse.status !== 200) {
+                throw new Error(`Failed to update ${test_case_key}: ${updateResponse.status}`);
+            }
+            return {
+                content: [{
+                        type: 'text',
+                        text: `✅ Renamed ${test_case_key} to "${name}"`,
+                    }],
+            };
+        }
+        catch (error) {
+            if (error instanceof McpError)
+                throw error;
+            throw new McpError(ErrorCode.InternalError, `Failed to update test case name: ${this.formatError(error)}`);
+        }
+    }
+    async updateTestCasePreconditionObjective(args) {
+        const { precondition, objective } = args;
+        if (precondition === undefined && objective === undefined) {
+            throw new McpError(ErrorCode.InvalidParams, 'At least one of precondition or objective must be provided');
+        }
+        if (this.jiraConfig.type === 'cloud') {
+            return this.updateTestCasePreconditionObjectiveCloud(args);
+        }
+        return this.updateTestCasePreconditionObjectiveDC(args);
+    }
+    async updateTestCasePreconditionObjectiveCloud(args) {
+        const { test_case_key, precondition, objective } = args;
+        try {
+            const getResponse = await this.axiosInstance.get(`${this.jiraConfig.apiEndpoints.testcase}/${test_case_key}`);
+            const tc = getResponse.data;
+            const payload = {
+                id: tc.id,
+                key: test_case_key,
+                name: tc.name,
+                status: tc.status,
+                priority: tc.priority,
+                project: tc.project,
+            };
+            if (tc.folder?.id !== undefined && tc.folder?.id !== null)
+                payload.folderId = tc.folder.id;
+            for (const field of ['objective', 'precondition', 'estimatedTime', 'component', 'owner']) {
+                if (tc[field] !== undefined && tc[field] !== null)
+                    payload[field] = tc[field];
+            }
+            if (precondition !== undefined)
+                payload.precondition = precondition;
+            if (objective !== undefined)
+                payload.objective = objective;
+            if (Array.isArray(tc.labels) && tc.labels.length > 0)
+                payload.labels = tc.labels;
+            if (tc.customFields && Object.keys(tc.customFields).length > 0)
+                payload.customFields = tc.customFields;
+            await this.axiosInstance.put(`${this.jiraConfig.apiEndpoints.testcase}/${test_case_key}`, payload);
+            return {
+                content: [{
+                        type: 'text',
+                        text: `✅ Updated precondition/objective on ${test_case_key} (Cloud v2)`,
+                    }],
+            };
+        }
+        catch (error) {
+            if (error instanceof McpError)
+                throw error;
+            throw new McpError(ErrorCode.InternalError, `Failed to update test case precondition/objective: ${this.formatError(error)}`);
+        }
+    }
+    async updateTestCasePreconditionObjectiveDC(args) {
+        const { test_case_key, precondition, objective } = args;
+        try {
+            const getResponse = await this.axiosInstance.get(`${this.jiraConfig.apiEndpoints.testcase}/${test_case_key}`);
+            const testCaseData = getResponse.data;
+            const payload = {};
+            const projectKey = testCaseData.projectKey ?? test_case_key.replace(/-T\d+$/, '');
+            const requiredFields = [
+                ['projectKey', projectKey],
+                ['name', testCaseData.name],
+                ['status', testCaseData.status],
+                ['priority', testCaseData.priority]
+            ];
+            for (const [field, value] of requiredFields) {
+                if (value === undefined || value === null || value === '') {
+                    throw new McpError(ErrorCode.InternalError, `Existing test case is missing required field '${field}' needed for update.`);
+                }
+                payload[field] = value;
+            }
+            for (const field of ['objective', 'precondition', 'folder', 'component', 'owner', 'estimatedTime']) {
+                if (testCaseData[field] !== undefined)
+                    payload[field] = testCaseData[field];
+            }
+            if (precondition !== undefined)
+                payload.precondition = precondition;
+            if (objective !== undefined)
+                payload.objective = objective;
+            if (Array.isArray(testCaseData.labels))
+                payload.labels = testCaseData.labels;
+            if (testCaseData.customFields)
+                payload.customFields = testCaseData.customFields;
+            if (testCaseData.parameters)
+                payload.parameters = testCaseData.parameters;
+            if (Array.isArray(testCaseData.issueLinks)) {
+                payload.issueLinks = testCaseData.issueLinks;
+            }
+            else if (testCaseData.issueKey) {
+                payload.issueLinks = [testCaseData.issueKey];
+            }
+            if (testCaseData.testScript)
+                payload.testScript = testCaseData.testScript;
+            const updateResponse = await this.axiosInstance.put(`${this.jiraConfig.apiEndpoints.testcase}/${test_case_key}`, payload);
+            if (updateResponse.status !== 200) {
+                throw new Error(`Failed to update ${test_case_key}: ${updateResponse.status}`);
+            }
+            return {
+                content: [{
+                        type: 'text',
+                        text: `✅ Updated precondition/objective on ${test_case_key}`,
+                    }],
+            };
+        }
+        catch (error) {
+            if (error instanceof McpError)
+                throw error;
+            throw new McpError(ErrorCode.InternalError, `Failed to update test case precondition/objective: ${this.formatError(error)}`);
+        }
+    }
     async getTestCaseSteps(args) {
         if (this.jiraConfig.type === 'datacenter') {
             throw new McpError(ErrorCode.InvalidRequest, 'get_test_case_steps is only supported on Zephyr Scale Cloud. The Data Center API (v1) does not provide a dedicated /teststeps endpoint.');
