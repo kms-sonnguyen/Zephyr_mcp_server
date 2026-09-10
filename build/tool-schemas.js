@@ -967,20 +967,6 @@ export const toolSchemas = [
         },
     },
     {
-        name: 'get_test_cycles_linked_to_issue',
-        description: 'Get test cycle IDs linked to a given Jira issue. Returns numeric IDs only, not keys — pass the ID to get_test_run to fetch full details. (Cloud only)',
-        inputSchema: {
-            type: 'object',
-            properties: {
-                issue_key: {
-                    type: 'string',
-                    description: 'Jira issue key (e.g., PROJ-123)',
-                },
-            },
-            required: ['issue_key'],
-        },
-    },
-    {
         name: 'get_test_execution_links',
         description: 'Get Jira issue links associated with a test execution. Test executions do not support web links. (Cloud only)',
         inputSchema: {
@@ -1054,7 +1040,6 @@ const TOOL_ANNOTATIONS = {
     get_test_case_links: READ_ONLY,
     get_test_cases_linked_to_issue: READ_ONLY,
     get_test_cycle_links: READ_ONLY,
-    get_test_cycles_linked_to_issue: READ_ONLY,
     get_test_execution_links: READ_ONLY,
     get_test_executions_linked_to_issue: READ_ONLY,
     search_test_cases: READ_ONLY,

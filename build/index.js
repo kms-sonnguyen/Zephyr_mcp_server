@@ -117,8 +117,6 @@ class ZephyrServer {
                         return await this.toolHandlers.createTestCycleWebLink(args);
                     case 'create_test_cycle_issue_link':
                         return await this.toolHandlers.createTestCycleIssueLink(args);
-                    case 'get_test_cycles_linked_to_issue':
-                        return await this.toolHandlers.getTestCyclesLinkedToIssue(args);
                     case 'get_test_execution_links':
                         return await this.toolHandlers.getTestExecutionLinks(args);
                     case 'create_test_execution_issue_link':

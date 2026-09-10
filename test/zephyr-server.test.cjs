@@ -1427,49 +1427,6 @@ class ZephyrServerTest {
     if (!indexContent.includes('createTestCycleIssueLink(args')) throw new Error('build/index.js does not call toolHandlers.createTestCycleIssueLink(...)');
   }
 
-  async testGetTestCyclesLinkedToIssueUnit() {
-    const { ZephyrToolHandlers } = await import('../build/tool-handlers.js');
-    const { McpError, ErrorCode } = await import('@modelcontextprotocol/sdk/types.js');
-
-    // --- DC rejection ---
-    const dcConfig = { type: 'datacenter', apiEndpoints: {} };
-    const dcHandlers = new ZephyrToolHandlers({}, dcConfig);
-    try {
-      await dcHandlers.getTestCyclesLinkedToIssue({ issue_key: 'QA-1' });
-      throw new Error('Expected McpError for datacenter');
-    } catch (e) {
-      if (!(e instanceof McpError)) throw new Error(`Expected McpError for DC rejection, got: ${e.message}`);
-      if (e.code !== ErrorCode.InvalidRequest) throw new Error(`Expected ErrorCode.InvalidRequest for DC rejection, got: ${e.code}`);
-    }
-
-    // --- Cloud: bare array of IDs, self dropped ---
-    const cloudConfig = { type: 'cloud', apiEndpoints: {} };
-    const requests = [];
-    const mockAxios = {
-      get: async (url) => {
-        requests.push(url);
-        return { data: [{ id: 1, self: 'https://x/testcycles/1' }] };
-      },
-    };
-    const cloudHandlers = new ZephyrToolHandlers(mockAxios, cloudConfig);
-    const result = await cloudHandlers.getTestCyclesLinkedToIssue({ issue_key: 'PROJ-123' });
-    if (requests[0] !== '/issuelinks/PROJ-123/testcycles') throw new Error(`Expected GET /issuelinks/PROJ-123/testcycles, got ${requests[0]}`);
-    const payload = JSON.parse(result.content[0].text);
-    if (payload.testCycles.length !== 1) throw new Error(`Expected 1 test cycle, got ${payload.testCycles.length}`);
-    if (payload.testCycles[0].id !== 1) throw new Error('Expected id 1');
-    if ('self' in payload.testCycles[0]) throw new Error('self should be dropped from reverse-lookup response');
-    if ('key' in payload.testCycles[0]) throw new Error('key should not appear — API does not return one for test cycles');
-
-    // --- Schema and dispatch wiring ---
-    const fs = require('fs');
-    const path = require('path');
-    const schemaContent = fs.readFileSync(path.join(__dirname, '../build/tool-schemas.js'), 'utf8');
-    if (!schemaContent.includes("name: 'get_test_cycles_linked_to_issue'")) throw new Error("'get_test_cycles_linked_to_issue' not found in built tool-schemas.js");
-    const indexContent = fs.readFileSync(path.join(__dirname, '../build/index.js'), 'utf8');
-    if (!indexContent.includes(`case 'get_test_cycles_linked_to_issue':`)) throw new Error("build/index.js does not dispatch 'get_test_cycles_linked_to_issue'");
-    if (!indexContent.includes('getTestCyclesLinkedToIssue(args')) throw new Error('build/index.js does not call toolHandlers.getTestCyclesLinkedToIssue(...)');
-  }
-
   async testGetTestExecutionLinksUnit() {
     const { ZephyrToolHandlers } = await import('../build/tool-handlers.js');
     const { McpError, ErrorCode } = await import('@modelcontextprotocol/sdk/types.js');
@@ -2107,7 +2064,6 @@ class ZephyrServerTest {
     await this.runTest('get_test_cycle_links Unit Tests', () => this.testGetTestCycleLinksUnit());
     await this.runTest('create_test_cycle_web_link Unit Tests', () => this.testCreateTestCycleWebLinkUnit());
     await this.runTest('create_test_cycle_issue_link Unit Tests', () => this.testCreateTestCycleIssueLinkUnit());
-    await this.runTest('get_test_cycles_linked_to_issue Unit Tests', () => this.testGetTestCyclesLinkedToIssueUnit());
     await this.runTest('get_test_execution_links Unit Tests', () => this.testGetTestExecutionLinksUnit());
     await this.runTest('create_test_execution_issue_link Unit Tests', () => this.testCreateTestExecutionIssueLinkUnit());
     await this.runTest('get_test_executions_linked_to_issue Unit Tests', () => this.testGetTestExecutionsLinkedToIssueUnit());

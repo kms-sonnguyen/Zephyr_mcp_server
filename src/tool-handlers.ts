@@ -30,7 +30,6 @@ import {
   GetTestCycleLinksArgs,
   CreateTestCycleWebLinkArgs,
   CreateTestCycleIssueLinkArgs,
-  GetTestCyclesLinkedToIssueArgs,
   GetTestExecutionLinksArgs,
   CreateTestExecutionIssueLinkArgs,
   GetTestExecutionsLinkedToIssueArgs,
@@ -2573,31 +2572,6 @@ export class ZephyrToolHandlers {
     } catch (error) {
       if (error instanceof McpError) throw error;
       throw new McpError(ErrorCode.InternalError, `Failed to create test cycle issue link: ${this.formatError(error)}`);
-    }
-  }
-
-  async getTestCyclesLinkedToIssue(args: GetTestCyclesLinkedToIssueArgs) {
-    if (this.jiraConfig.type === 'datacenter') {
-      throw new McpError(
-        ErrorCode.InvalidRequest,
-        'get_test_cycles_linked_to_issue is only supported on Zephyr Scale Cloud. The Data Center API (v1) does not expose an /issuelinks endpoint.'
-      );
-    }
-
-    const { issue_key } = args;
-
-    try {
-      const response = await this.axiosInstance.get(`/issuelinks/${issue_key}/testcycles`);
-      const data: any[] = Array.isArray(response.data) ? response.data : [];
-      return {
-        content: [{
-          type: 'text',
-          text: JSON.stringify({ testCycles: data.map((tc: any) => ({ id: tc.id })) }, null, 2),
-        }],
-      };
-    } catch (error) {
-      if (error instanceof McpError) throw error;
-      throw new McpError(ErrorCode.InternalError, `Failed to get test cycles linked to issue: ${this.formatError(error)}`);
     }
   }
 

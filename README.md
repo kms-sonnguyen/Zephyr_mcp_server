@@ -167,7 +167,6 @@ The server provides access to various resources through URI schemes:
 - `get_test_cycle_links`: Get all links (Jira issue links, web links, and test plan links) associated with a test cycle. *(Cloud only)*
 - `create_test_cycle_web_link`: Create a web link that associates a test cycle with a generic URL. *(Cloud only)*
 - `create_test_cycle_issue_link`: Create a Jira issue link that associates a test cycle with a Jira issue. *(Cloud only)*
-- `get_test_cycles_linked_to_issue`: Get test cycle IDs linked to a given Jira issue. Returns numeric IDs only, not keys. *(Cloud only)*
 - `get_test_execution_links`: Get Jira issue links associated with a test execution. Test executions do not support web links. *(Cloud only)*
 - `create_test_execution_issue_link`: Create a Jira issue link that associates a test execution with a Jira issue. *(Cloud only)*
 - `get_test_executions_linked_to_issue`: Get test execution IDs linked to a given Jira issue. Returns numeric IDs only, not keys. *(Cloud only)*
