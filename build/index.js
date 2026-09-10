@@ -3,10 +3,16 @@ import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { CallToolRequestSchema, ErrorCode, ListResourcesRequestSchema, ListToolsRequestSchema, McpError, ReadResourceRequestSchema, } from '@modelcontextprotocol/sdk/types.js';
 import axios from 'axios';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { dirname, join } from 'node:path';
 import { toolSchemas } from './tool-schemas.js';
 import { ZephyrToolHandlers } from './tool-handlers.js';
 import { resourceList, readResource, setAxiosInstance } from './resources.js';
 import { createJiraConfig } from './utils.js';
+// Read version from package.json (../ relative to build/index.js at runtime) so
+// it always matches the published package rather than drifting on each release.
+const pkg = JSON.parse(readFileSync(join(dirname(fileURLToPath(import.meta.url)), '..', 'package.json'), 'utf8'));
 class ZephyrServer {
     server;
     toolHandlers;
@@ -14,7 +20,7 @@ class ZephyrServer {
         const jiraConfig = createJiraConfig();
         this.server = new Server({
             name: 'zephyr-server',
-            version: '0.3.1',
+            version: pkg.version,
         }, {
             capabilities: {
                 tools: {},
@@ -121,6 +127,10 @@ class ZephyrServer {
                         return await this.toolHandlers.getTestExecutionsLinkedToIssue(args);
                     case 'list_executions_by_cycle':
                         return await this.toolHandlers.listExecutionsByCycle(args);
+                    case 'update_test_execution':
+                        return await this.toolHandlers.updateTestExecution(args);
+                    case 'get_test_cycles_for_issue':
+                        return await this.toolHandlers.getTestCyclesForIssue(args);
                     default:
                         throw new McpError(ErrorCode.MethodNotFound, `Unknown tool: ${request.params.name}`);
                 }

@@ -26,6 +26,7 @@ This is a fork of [Milo0821/Zephyr_mcp_server](https://github.com/Milo0821/Zephy
 - ✅ **Official API-Compliant Schemas**: Tools and data structures match the official Zephyr Scale REST API, ensuring compatibility and reliability.
 - ✅ **Unified Test Case Creation**: A single `create_test_case` tool handles all script types (BDD, Step-by-Step, Plain Text) for a simplified workflow.
 - ✅ **Full Test Lifecycle Management**: Comprehensive tools to create, read, delete test cases, and manage test runs, executions, and folders.
+- ✅ **Execution Reporting & Jira Integration** *(Cloud)*: Report execution results (Pass/Fail/Blocked), attach bugs as Jira issue links, and discover the Zephyr test cycle linked to any Jira story or epic — bridging a Jira ticket straight to its executions.
 - ✅ **Live Templating System**: Use real test cases from your Zephyr instance as templates (`zephyr://testcase/KEY`) to ensure consistency and correct project-specific fields.
 - ✅ **Unified Resource System**: Access live Zephyr data, local files (`file://`), and built-in examples through a consistent URI-based system.
 
@@ -142,9 +143,11 @@ The server provides access to various resources through URI schemes:
 ### Test Execution & Search
 - `get_test_execution`: Get detailed individual test execution results.
 - `list_executions_by_cycle`: List all test executions for a specific test cycle with status, executor, and date. *(Cloud only)*
+- `update_test_execution`: Update a test case execution's status within a cycle (Pass/Fail/etc.), add a comment, and attach bug(s) as Jira issue links. Identify the execution by `execution_id`, or by `test_cycle_key` + `test_case_key`. *(Cloud only)*
 - `search_test_cases_by_folder`: Search for test cases in a specific folder. Automatically paginates through all results.
 - `search_test_cases`: Search for test cases by a case-insensitive name substring within a project, optionally scoped to an exact folder. Filters client-side (neither platform offers server-side name search); capped at 5000 scanned test cases per call — check the `truncated` field in the response.
 - `search_test_runs`: Search for test runs by project key and/or folder path.
+- `get_test_cycles_for_issue`: Get the Zephyr test cycles linked to a Jira issue (story/epic). Resolves each cycle ID to its key (e.g. `PROJ-R123`) and name so you can feed it straight into `list_executions_by_cycle` / `update_test_execution`. *(Cloud only)*
 
 ### Organization
 - `create_folder`: Create a new folder in Zephyr Scale.
@@ -208,6 +211,33 @@ The server provides access to various resources through URI schemes:
 }
 ```
 **Note**: The server will convert markdown-style BDD into Gherkin when possible and will preserve all other existing test case fields.
+
+### Mark an Execution as Failed and Attach a Bug
+```json
+{
+  "test_cycle_key": "PROJ-R123",
+  "test_case_key": "PROJ-T456",
+  "status": "Fail",
+  "comment": "Login button unresponsive on submit.",
+  "bug_keys": ["PROJ-789"]
+}
+```
+Or target an execution directly by key:
+```json
+{
+  "execution_id": "PROJ-E123",
+  "status": "Pass"
+}
+```
+**Note**: `update_test_execution` is Cloud only. `bug_keys` requires `JIRA_USERNAME` and `JIRA_API_TOKEN`; link failures are reported as warnings while the status update still succeeds.
+
+### Find the Test Cycle Linked to a Jira Ticket
+```json
+{
+  "issue_key": "PROJ-6752"
+}
+```
+Returns the linked cycles with resolved keys, e.g. `[{ "id": "110702963", "key": "PROJ-R467", "name": "..." }]`. This is the bridge from a Jira ticket to its Zephyr cycle — the association is stored on the Zephyr side, not in Jira's issue fields. Chain it: `get_test_cycles_for_issue` → `list_executions_by_cycle` → `update_test_execution`. Pass `"resolve_keys": false` to skip the per-cycle key/name lookup and return raw IDs only. **Cloud only.**
 
 ## Authentication
 

@@ -571,6 +571,83 @@ export const toolSchemas = [
     },
   },
   {
+    name: 'update_test_execution',
+    description: 'Update a test case execution\'s status within a test cycle, and optionally attach bug(s) as Jira issue links. Identify the execution either by execution_id directly, or by test_cycle_key + test_case_key (the latest execution is used). Cloud only.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        execution_id: {
+          type: 'string',
+          description: 'Test execution key or ID (e.g. "PROJ-E123" or 5805255). Takes precedence over test_cycle_key/test_case_key.',
+        },
+        test_cycle_key: {
+          type: 'string',
+          description: 'Test cycle key (e.g. "PROJ-R123"). Used together with test_case_key to locate the execution when execution_id is not given.',
+        },
+        test_case_key: {
+          type: 'string',
+          description: 'Test case key (e.g. "PROJ-T456"). Used together with test_cycle_key to locate the execution.',
+        },
+        project_key: {
+          type: 'string',
+          description: 'Project key for the cycle lookup (optional — derived from test_cycle_key when omitted).',
+        },
+        status: {
+          type: 'string',
+          description: 'New execution status name. Common values: "Pass", "Fail", "In Progress", "Blocked", "Not Executed". Must match a status configured in your Zephyr project.',
+        },
+        comment: {
+          type: 'string',
+          description: 'Comment against the overall execution (e.g. failure details).',
+        },
+        environment: {
+          type: 'string',
+          description: 'Environment name assigned to the execution (e.g. "Chrome Latest Version").',
+        },
+        execution_time: {
+          type: 'number',
+          description: 'Actual execution time in milliseconds (optional).',
+        },
+        actual_end_date: {
+          type: 'string',
+          description: 'Actual end date in ISO format, e.g. "2024-05-20T13:15:13Z" (optional).',
+        },
+        executed_by_id: {
+          type: 'string',
+          description: 'Jira Account ID of the user who executed the test (optional).',
+        },
+        assigned_to_id: {
+          type: 'string',
+          description: 'Jira Account ID of the user the execution is assigned to (optional).',
+        },
+        bug_keys: {
+          type: 'array',
+          description: 'Jira issue keys to attach to the execution as bugs (e.g. ["PROJ-789"]). Each key is resolved to a numeric ID via the Jira REST API (requires JIRA_USERNAME + JIRA_API_TOKEN) and linked via POST /testexecutions/{key}/links/issues. Failures are reported as warnings and do not fail the call.',
+          items: { type: 'string' },
+        },
+      },
+    },
+  },
+  {
+    name: 'get_test_cycles_for_issue',
+    description: 'Get the Zephyr test cycles linked to a Jira issue (e.g. a story or epic). Calls GET /issuelinks/{issueKey}/testcycles and, by default, resolves each numeric cycle ID to its key (e.g. "PROJ-R123") and name. Use this to discover the test cycle referenced by a Jira ticket, then feed the key into list_executions_by_cycle / update_test_execution. Cloud only.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        issue_key: {
+          type: 'string',
+          description: 'Jira issue key whose linked test cycles to fetch (e.g. "PROJ-123").',
+        },
+        resolve_keys: {
+          type: 'boolean',
+          description: 'When true (default), resolve each cycle ID to its key + name via GET /testcycles/{id}. Set false to return raw numeric IDs only (faster, no extra calls).',
+          default: true,
+        },
+      },
+      required: ['issue_key'],
+    },
+  },
+  {
     name: 'delete_test_run',
     description: 'Delete a specific test run (Data Center only — not supported on Cloud v2)',
     inputSchema: {
@@ -950,3 +1027,63 @@ export const toolSchemas = [
     },
   },
 ];
+
+// MCP tool annotations (behavioral hints, protocol revision 2025-03-26+).
+// Advisory only — clients use them for UX and safety, e.g. auto-approving
+// read-only calls or confirming before a destructive delete. Every tool talks
+// to the remote Zephyr/Jira API, so openWorldHint is true across the board.
+const READ_ONLY = { readOnlyHint: true, openWorldHint: true };
+const WRITE = { readOnlyHint: false, destructiveHint: false, openWorldHint: true };
+const DESTRUCTIVE = { readOnlyHint: false, destructiveHint: true, openWorldHint: true };
+
+const TOOL_ANNOTATIONS: Record<string, Record<string, boolean>> = {
+  // Reads
+  get_test_case: READ_ONLY,
+  get_folders: READ_ONLY,
+  get_test_run_cases: READ_ONLY,
+  get_test_run: READ_ONLY,
+  get_test_execution: READ_ONLY,
+  search_test_cases_by_folder: READ_ONLY,
+  search_test_runs: READ_ONLY,
+  list_executions_by_cycle: READ_ONLY,
+  get_test_cycles_for_issue: READ_ONLY,
+  get_test_case_steps: READ_ONLY,
+  get_projects: READ_ONLY,
+  get_statuses: READ_ONLY,
+  get_priorities: READ_ONLY,
+  get_environments: READ_ONLY,
+  get_test_script: READ_ONLY,
+  get_test_case_links: READ_ONLY,
+  get_test_cases_linked_to_issue: READ_ONLY,
+  get_test_cycle_links: READ_ONLY,
+  get_test_cycles_linked_to_issue: READ_ONLY,
+  get_test_execution_links: READ_ONLY,
+  get_test_executions_linked_to_issue: READ_ONLY,
+  search_test_cases: READ_ONLY,
+  // Non-destructive writes (create / update / append)
+  create_test_case: WRITE,
+  update_test_case_bdd: WRITE,
+  create_folder: WRITE,
+  create_test_run: WRITE,
+  update_test_run: WRITE,
+  add_test_cases_to_run: WRITE,
+  update_test_execution: WRITE,
+  update_test_case_steps: WRITE,
+  update_test_case_custom_fields: WRITE,
+  update_test_case_name: WRITE,
+  update_test_case_precondition_objective: WRITE,
+  move_test_case_folder: WRITE,
+  create_test_case_web_link: WRITE,
+  create_test_case_issue_link: WRITE,
+  create_test_cycle_web_link: WRITE,
+  create_test_cycle_issue_link: WRITE,
+  create_test_execution_issue_link: WRITE,
+  // Destructive
+  delete_test_case: DESTRUCTIVE,
+  delete_test_run: DESTRUCTIVE,
+};
+
+for (const tool of toolSchemas) {
+  const annotations = TOOL_ANNOTATIONS[tool.name];
+  if (annotations) (tool as { annotations?: unknown }).annotations = annotations;
+}
