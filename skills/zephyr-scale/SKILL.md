@@ -75,7 +75,7 @@ The full argument tables are in `references/tools.md`. Check them, or run `help 
 | Symptom | Fix |
 |---|---|
 | `Invalid JSON arguments` | Shell quoting broke the JSON. Use the `<<'EOF'` heredoc form, or `@args.json` on Windows |
-| `Configuration error` | Run `config`. Ask the user to fill in `.env` next to `SKILL.md`, starting from `.env.example` |
+| `Configuration error` or `PLACEHOLDER` in `config` output | Run `config`. Ask the user to fill in `.env` next to `SKILL.md`, starting from `.env.example` |
 | `Missing required argument(s)` | Run `help <tool>`. Keys are snake_case (`test_case_key`, not `testCaseKey`) |
 | `Status: 400` mentioning status/priority | The value isn't configured in the project. Look it up first |
 | Issue link fails with an auth or ID error | `JIRA_USERNAME` / `JIRA_API_TOKEN` are not set (Cloud) |

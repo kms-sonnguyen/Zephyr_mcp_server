@@ -15,7 +15,7 @@ src/
 ├── index.ts          # MCP server entry point — wires transport, tools, resources
 ├── cli.ts            # Non-MCP CLI entry point (list / help / <tool> <json>) — backs the agent skill
 ├── dispatch.ts       # createToolDispatch(): tool name → handler map, shared by index.ts and cli.ts
-├── env-file.ts       # .env loader for the CLI (skill-folder .env or $ZEPHYR_ENV_FILE)
+├── env-file.ts       # .env loader for CLI + server ($ZEPHYR_ENV_FILE, else <script dir>/../.env)
 ├── tool-handlers.ts  # ZephyrToolHandlers class — all tool implementations
 ├── tool-schemas.ts   # MCP tool input schemas (JSON Schema)
 ├── resources.ts      # MCP resource handlers (file://, zephyr://testcase/, zephyr://examples/)
@@ -62,6 +62,8 @@ For orgs that block MCP. `cli.ts` reuses `ZephyrToolHandlers` through the same `
 
 - `node skills/zephyr-scale/scripts/zephyr.mjs list | help <tool> | <tool> '<json>'` (JSON may also come on stdin).
 - The CLI validates `required` args from `toolSchemas` itself, since there is no MCP client to do it.
+- Install guides for agents: `docs/install/skill.md` and `docs/install/mcp.md`. The README links them via raw.githubusercontent URLs on the fork's `main`. Keep them in sync when install steps, paths, or the env-file behaviour change.
+- The MCP server (`index.ts`) also calls `loadEnvFile()` at startup. Its default file is `<package root>/.env` (`build/..`), so client configs can omit secrets.
 - Credentials: `src/env-file.ts` loads `$ZEPHYR_ENV_FILE`, or by default `.env` in the skill folder (resolved from the script location, `scripts/..`). It never overrides variables already in `process.env`. It's a tiny hand-written parser, because Node 18 has no `process.loadEnvFile`. `zephyr config` prints each setting's source with secrets masked. The skill folder ships its own `.gitignore` (`.env`) plus a `.env.example`; the root `.gitignore` has a `!skills/zephyr-scale/.env.example` exception.
 - `@path/to/args.json` passes args from a file. This is the Windows/PowerShell-safe path, since PowerShell mangles quoted JSON in native-command arguments.
 - CLI unit tests run against a temp copy of the bundle (`makeSkillCopy()`), never the in-repo skill folder, so a developer's real `skills/zephyr-scale/.env` is never read or clobbered.

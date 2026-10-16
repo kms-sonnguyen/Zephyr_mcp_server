@@ -3,9 +3,11 @@
  * where editing shell profiles is awkward — can keep credentials in one file.
  * Node 18 has no built-in loader (process.loadEnvFile is 20.12+), hence this parser.
  *
- * Lookup: $ZEPHYR_ENV_FILE if set, else `.env` in the skill folder — the parent of
- * the directory holding the running script (skills/zephyr-scale/scripts/zephyr.mjs
- * → skills/zephyr-scale/.env). The skill folder ships a .gitignore covering it.
+ * Lookup: $ZEPHYR_ENV_FILE if set, else `.env` in the parent of the directory
+ * holding the running script:
+ *   - skill CLI:  skills/zephyr-scale/scripts/zephyr.mjs → skills/zephyr-scale/.env
+ *     (the skill folder ships a .gitignore covering it)
+ *   - MCP server: build/index.js → <repo root>/.env (covered by the root .gitignore)
  * Variables already present in process.env always win over the file.
  */
 import { readFileSync, existsSync } from 'node:fs';

@@ -1106,6 +1106,14 @@ class ZephyrServerTest {
         throw new Error(`API key not masked:\n${config.stdout}`);
       }
 
+      if (config.stdout.includes('PLACEHOLDER')) throw new Error(`real values flagged as placeholder:\n${config.stdout}`);
+      const example = fs.readFileSync(path.join(__dirname, '../skills/zephyr-scale/.env.example'), 'utf8');
+      const fromExample = path.join(tmp, 'example.env');
+      fs.writeFileSync(fromExample, example.replace(/^# (JIRA_USERNAME|JIRA_API_TOKEN)=/gm, '$1='));
+      const unedited = run(['config'], { env: { ZEPHYR_ENV_FILE: fromExample } });
+      const flagged = unedited.stdout.split('\n').filter((l) => l.includes('PLACEHOLDER')).length;
+      if (flagged !== 4) throw new Error(`expected 4 placeholder flags for unedited template, got ${flagged}:\n${unedited.stdout}`);
+
       // Values from the file reach the tool: DC URL => DC-gated error, not a config error.
       const fromFile = run(['get_projects', '{}']);
       if (fromFile.status !== 1 || !fromFile.stderr.includes('only supported on Zephyr Scale Cloud')) {
@@ -1151,6 +1159,41 @@ class ZephyrServerTest {
     } finally {
       fs.rmSync(tmp, { recursive: true, force: true });
       fs.rmSync(skill, { recursive: true, force: true });
+    }
+  }
+
+  async testServerLoadsEnvFile() {
+    const fs = require('fs');
+    const os = require('os');
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'zephyr-srv-'));
+    const envPath = path.join(tmp, 'zephyr.env');
+    fs.writeFileSync(envPath, 'ZEPHYR_BASE_URL=https://jira.example.invalid\nZEPHYR_API_KEY=k\n');
+    try {
+      const out = await new Promise((resolve, reject) => {
+        // Only ZEPHYR_ENV_FILE is set: without the .env fallback the server throws at startup.
+        const child = spawn(process.execPath, [this.serverPath], {
+          env: { PATH: process.env.PATH, ZEPHYR_ENV_FILE: envPath },
+          stdio: ['pipe', 'pipe', 'pipe'],
+        });
+        let stdout = '';
+        let stderr = '';
+        const timer = setTimeout(() => { child.kill(); reject(new Error(`no tools/list reply; stderr: ${stderr}`)); }, 5000);
+        child.stdout.on('data', (d) => {
+          stdout += d;
+          if (stdout.includes('"id":2')) { clearTimeout(timer); child.kill(); resolve({ stdout, stderr }); }
+        });
+        child.stderr.on('data', (d) => { stderr += d; });
+        child.on('exit', (code) => { if (!stdout.includes('"id":2')) { clearTimeout(timer); reject(new Error(`server exited ${code}: ${stderr}`)); } });
+        const send = (m) => child.stdin.write(JSON.stringify(m) + '\n');
+        send({ jsonrpc: '2.0', id: 1, method: 'initialize', params: { protocolVersion: '2025-03-26', capabilities: {}, clientInfo: { name: 't', version: '1' } } });
+        send({ jsonrpc: '2.0', method: 'notifications/initialized' });
+        send({ jsonrpc: '2.0', id: 2, method: 'tools/list' });
+      });
+      const reply = out.stdout.split('\n').filter(Boolean).map((l) => JSON.parse(l)).find((m) => m.id === 2);
+      if (!reply?.result?.tools?.length) throw new Error(`tools/list returned no tools: ${out.stdout}`);
+      if (!out.stderr.includes(`loaded settings from ${envPath}`)) throw new Error(`env file not reported: ${out.stderr}`);
+    } finally {
+      fs.rmSync(tmp, { recursive: true, force: true });
     }
   }
 
@@ -2229,6 +2272,7 @@ class ZephyrServerTest {
     await this.runTest('Dispatch Covers All Schemas', () => this.testDispatchCoversAllSchemas());
     await this.runTest('Skill CLI', () => this.testSkillCli());
     await this.runTest('Skill CLI Env File', () => this.testSkillCliEnvFile());
+    await this.runTest('Server Loads Env File', () => this.testServerLoadsEnvFile());
     await this.runTest('Skill Reference Up To Date', () => this.testSkillReferenceUpToDate());
     await this.runTest('get_test_script Unit Tests', () => this.testGetTestScriptUnit());
     await this.runTest('get_test_case_links Unit Tests', () => this.testGetTestCaseLinksUnit());

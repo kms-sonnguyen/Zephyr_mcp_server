@@ -42,6 +42,8 @@ by default, .env in the skill folder (next to SKILL.md).`;
 
 const SETTINGS = ['ZEPHYR_BASE_URL', 'ZEPHYR_API_KEY', 'JIRA_TYPE', 'ZEPHYR_API_BASE_URL', 'JIRA_USERNAME', 'JIRA_API_TOKEN'];
 const SECRETS = new Set(['ZEPHYR_API_KEY', 'JIRA_API_TOKEN']);
+// Values copied unedited from skills/zephyr-scale/.env.example.
+const PLACEHOLDER = /^(https:\/\/)?your-|^you@company\.com$/;
 
 function fail(message: string, code: number): never {
   process.stderr.write(message.endsWith('\n') ? message : message + '\n');
@@ -112,7 +114,8 @@ function printConfig(env: EnvFileResult) {
       continue;
     }
     const shown = SECRETS.has(key) ? `${'*'.repeat(8)}${value.slice(-4)}` : value;
-    lines.push(`${key}: ${shown} [from ${env.applied.includes(key) ? 'env file' : 'environment'}]`);
+    const flag = PLACEHOLDER.test(value) ? ' (PLACEHOLDER - not filled in)' : '';
+    lines.push(`${key}: ${shown} [from ${env.applied.includes(key) ? 'env file' : 'environment'}]${flag}`);
   }
   process.stdout.write(lines.join('\n') + '\n');
 }

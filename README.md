@@ -4,6 +4,13 @@ Model Context Protocol server for Zephyr Scale test management, supporting both 
 
 **No MCP allowed in your org?** The same tools ship as an agent skill with a standalone CLI that works in Claude Code, GitHub Copilot, and other agents. See [Using Without MCP (Agent Skill)](#using-without-mcp-agent-skill).
 
+**Quickest install: let your AI agent do it.** Paste one of these prompts into Claude Code, GitHub Copilot (agent mode), or any coding agent. The agent installs from this fork, sets up a git-ignored `.env` for your credentials, and checks the connection to Zephyr. It asks you to paste your API key into the file yourself, so the key never appears in the chat.
+
+- Agent skill (no MCP needed): `Read https://raw.githubusercontent.com/kms-sonnguyen/Zephyr_mcp_server/main/docs/install/skill.md and follow it to install the Zephyr Scale skill for me.`
+- MCP server: `Read https://raw.githubusercontent.com/kms-sonnguyen/Zephyr_mcp_server/main/docs/install/mcp.md and follow it to install the Zephyr Scale MCP server for me.`
+
+See [Let your agent install it](#let-your-agent-install-it) for details.
+
 ## What's different from the original
 
 This is a fork of [Milo0821/Zephyr_mcp_server](https://github.com/Milo0821/Zephyr_mcp_server) with additional tools that close gaps in STEP_BY_STEP test case management and test case search.
@@ -46,6 +53,19 @@ In total, this fork has 40 tools and upstream has 18.
 - ✅ **Works Without MCP**: An agent skill with a bundled CLI exposes every tool to Claude Code, GitHub Copilot, and any other agent that can run shell commands.
 
 ## Installation and Configuration
+
+### Let your agent install it
+
+There are two step-by-step guides written for AI agents, such as Claude Code or GitHub Copilot in agent mode. Paste one of these prompts into your agent:
+
+| Install | Prompt |
+|---|---|
+| **Agent skill** (no MCP needed) | `Read https://raw.githubusercontent.com/kms-sonnguyen/Zephyr_mcp_server/main/docs/install/skill.md and follow it to install the Zephyr Scale skill for me.` |
+| **MCP server** | `Read https://raw.githubusercontent.com/kms-sonnguyen/Zephyr_mcp_server/main/docs/install/mcp.md and follow it to install the Zephyr Scale MCP server for me.` |
+
+Each guide checks prerequisites, installs from this fork, sets up a git-ignored `.env` for credentials, and runs a live check against Zephyr. The agent asks you to paste the API key into the `.env` file yourself, so the key never appears in the chat. You can also follow the guides by hand: [`docs/install/skill.md`](docs/install/skill.md) and [`docs/install/mcp.md`](docs/install/mcp.md).
+
+### Manual setup
 
 You can run the server using `npx` without installation, or install it globally from `npm`.
 
@@ -372,6 +392,10 @@ Returns the linked cycles with resolved keys, e.g. `[{ "id": "110702963", "key":
 | `ZEPHYR_BASE_URL` | ✅ | Your Jira server URL, e.g. `https://your-jira-server.com` |
 | `ZEPHYR_API_KEY` | ✅ | Zephyr Scale API token from your Jira profile settings |
 | `JIRA_TYPE` | Optional | Set to `"datacenter"` to override auto-detection |
+
+### Credentials in a `.env` file
+
+You don't have to put credentials in the MCP client config. The server also reads a `.env` file: `$ZEPHYR_ENV_FILE` if that variable is set, otherwise `.env` in the package root, next to `build/`. For a source checkout, that's the repository root, which git already ignores. Variables set in the client's `env` block or in your shell take precedence over the file. `skills/zephyr-scale/.env.example` is a template.
 
 ### Automatic Detection
 The server automatically detects your Jira type based on `ZEPHYR_BASE_URL` — URLs containing `.atlassian.net` are treated as Cloud, everything else as Data Center. Override with `JIRA_TYPE="cloud"` or `JIRA_TYPE="datacenter"`.

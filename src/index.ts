@@ -18,6 +18,7 @@ import { ZephyrToolHandlers } from './tool-handlers.js';
 import { createToolDispatch, ToolFn } from './dispatch.js';
 import { resourceList, readResource, setAxiosInstance } from './resources.js';
 import { createJiraConfig } from './utils.js';
+import { loadEnvFile } from './env-file.js';
 
 // Read version from package.json (../ relative to build/index.js at runtime) so
 // it always matches the published package rather than drifting on each release.
@@ -31,6 +32,10 @@ class ZephyrServer {
   private dispatch: Record<string, ToolFn>;
 
   constructor() {
+    // Same .env fallback as the CLI: $ZEPHYR_ENV_FILE, else <package root>/.env.
+    // Lets MCP client configs omit secrets; real env vars still win.
+    const envFile = loadEnvFile();
+    if (envFile.found) console.error(`[zephyr] loaded settings from ${envFile.path}`);
     const jiraConfig = createJiraConfig();
 
     this.server = new Server(
