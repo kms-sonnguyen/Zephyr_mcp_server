@@ -2,6 +2,8 @@
 
 Model Context Protocol server for Zephyr Scale test management, supporting both **Jira Cloud and Data Center**. Create, read, and manage test cases through the Atlassian REST API with **official API-compliant schemas**. Access live test case data, example payloads, and file resources through a unified resource system.
 
+**No MCP allowed in your org?** The same tools ship as an agent skill with a standalone CLI that works in Claude Code, GitHub Copilot, and other agents. See [Using Without MCP (Agent Skill)](#using-without-mcp-agent-skill).
+
 ## What's different from the original
 
 This is a fork of [Milo0821/Zephyr_mcp_server](https://github.com/Milo0821/Zephyr_mcp_server) with additional tools that close gaps in STEP_BY_STEP test case management and test case search.
@@ -18,6 +20,18 @@ This is a fork of [Milo0821/Zephyr_mcp_server](https://github.com/Milo0821/Zephy
 
 `get_test_case_steps` and `update_test_case_steps` are Cloud-only — the Zephyr Scale Data Center API v1 does not expose a dedicated `/teststeps` endpoint. `search_test_cases` works on both Cloud and Data Center.
 
+**Also added in this fork.** The [Tools Reference](#tools-reference) has details on each one.
+
+| Area | Tools |
+|---|---|
+| Targeted test case edits (Cloud + DC) | `update_test_case_name`, `update_test_case_precondition_objective`, `update_test_case_custom_fields`, `move_test_case_folder` |
+| Test script content (Cloud + DC) | `get_test_script` |
+| Project reference data *(Cloud only)* | `get_projects`, `get_statuses`, `get_priorities`, `get_environments` |
+| Jira and web links *(Cloud only)* | `get_test_case_links`, `create_test_case_web_link`, `create_test_case_issue_link`, `get_test_cases_linked_to_issue`, `get_test_cycle_links`, `create_test_cycle_web_link`, `create_test_cycle_issue_link`, `get_test_execution_links`, `create_test_execution_issue_link`, `get_test_executions_linked_to_issue` |
+| Non-MCP usage | An [agent skill and standalone CLI](#using-without-mcp-agent-skill) that expose every tool without an MCP client |
+
+In total, this fork has 40 tools and upstream has 18.
+
 ---
 
 ## Features
@@ -29,10 +43,13 @@ This is a fork of [Milo0821/Zephyr_mcp_server](https://github.com/Milo0821/Zephy
 - ✅ **Execution Reporting & Jira Integration** *(Cloud)*: Report execution results (Pass/Fail/Blocked), attach bugs as Jira issue links, and discover the Zephyr test cycle linked to any Jira story or epic — bridging a Jira ticket straight to its executions.
 - ✅ **Live Templating System**: Use real test cases from your Zephyr instance as templates (`zephyr://testcase/KEY`) to ensure consistency and correct project-specific fields.
 - ✅ **Unified Resource System**: Access live Zephyr data, local files (`file://`), and built-in examples through a consistent URI-based system.
+- ✅ **Works Without MCP**: An agent skill with a bundled CLI exposes every tool to Claude Code, GitHub Copilot, and any other agent that can run shell commands.
 
 ## Installation and Configuration
 
 You can run the server using `npx` without installation, or install it globally from `npm`.
+
+> **Note:** The `zephyr-scale-mcp-server` package on npm is published from the upstream repository, [Milo0821/Zephyr_mcp_server](https://github.com/Milo0821/Zephyr_mcp_server). Its tool set can differ from this fork's. To run exactly this fork, build it from source (`npm install && npm run build`) and point your MCP client at `node /path/to/Zephyr_mcp_server/build/index.js`. Alternatively, use the [agent skill](#using-without-mcp-agent-skill).
 
 ### Using npx (Recommended)
 Configure your MCP client with the following structure.
@@ -54,7 +71,7 @@ Configure your MCP client with the following structure.
   }
 }
 ```
-> **Note**: `JIRA_USERNAME` and `JIRA_API_TOKEN` are optional but required if you want to use the `issue_links` field when creating test cases. Without them, issue linking will fail with a 401 warning (the test case is still created). Generate a Jira API token at [id.atlassian.com/manage-profile/security/api-tokens](https://id.atlassian.com/manage-profile/security/api-tokens).
+> **Note**: `JIRA_USERNAME` and `JIRA_API_TOKEN` are optional. You need them for anything that links Jira issues on Cloud, such as `issue_links` and `bug_keys`, or the `create_*_issue_link` tools. Without them, issue linking will fail with a 401 warning (the test case is still created). Generate a Jira API token at [id.atlassian.com/manage-profile/security/api-tokens](https://id.atlassian.com/manage-profile/security/api-tokens).
 
 **Jira Cloud (EU region):**
 ```json
@@ -98,10 +115,105 @@ npm install -g zephyr-scale-mcp-server
 ```
 Then, update the `command` in your MCP configuration to `"command": "zephyr-scale-mcp"`.
 
+## Using Without MCP (Agent Skill)
+
+If your organization doesn't allow MCP servers, you can still use all 40 tools through an agent skill, in [`skills/zephyr-scale/`](skills/zephyr-scale/). The agent reads `SKILL.md` and runs the tools as ordinary shell commands. No MCP server or MCP client is involved.
+
+| File | Purpose |
+|---|---|
+| `SKILL.md` | When to use the skill, how to call the tools, and the rules (platform limits, confirmation before deletes) |
+| `scripts/zephyr.mjs` | Single-file bundled CLI. Needs Node 18 or later. No `npm install` |
+| `references/tools.md` | Argument reference for every tool, generated from the tool schemas |
+| `.env.example` | Credentials template. Copy it to `.env` in the same folder |
+| `.gitignore` | Keeps `.env` out of git, even if the skill folder is committed to a repository |
+
+The CLI works on its own too:
+
+```bash
+node skills/zephyr-scale/scripts/zephyr.mjs list                     # all tools
+node skills/zephyr-scale/scripts/zephyr.mjs help create_test_case    # JSON schema for one tool
+node skills/zephyr-scale/scripts/zephyr.mjs get_test_case '{"test_case_key":"PROJ-T123"}'
+node skills/zephyr-scale/scripts/zephyr.mjs get_test_case @args.json       # JSON args from a file (best on Windows)
+node skills/zephyr-scale/scripts/zephyr.mjs config                          # show which settings are set (secrets masked)
+node skills/zephyr-scale/scripts/zephyr.mjs create_test_case <<'EOF'
+{ "project_key": "PROJ", "name": "Login works", "test_script": { "type": "BDD", "text": "Given ...\nWhen ...\nThen ..." } }
+EOF
+```
+
+Exit codes: `0` success, `1` Zephyr/Jira API error (message on stderr), `2` usage or configuration error.
+
+### Credentials
+
+The easiest way to configure credentials is a `.env` file inside the installed skill folder, next to `SKILL.md`. This works the same on Windows, macOS, and Linux, and for every agent.
+
+1. Copy `.env.example` to `.env` in the installed skill folder:
+   ```bash
+   # macOS / Linux (Claude Code example; use your agent's skill path)
+   cp ~/.claude/skills/zephyr-scale/.env.example ~/.claude/skills/zephyr-scale/.env
+   ```
+   ```powershell
+   # Windows PowerShell (Copilot example)
+   Copy-Item "$HOME\.copilot\skills\zephyr-scale\.env.example" "$HOME\.copilot\skills\zephyr-scale\.env"
+   notepad "$HOME\.copilot\skills\zephyr-scale\.env"
+   ```
+2. Fill in at least `ZEPHYR_BASE_URL` and `ZEPHYR_API_KEY`. The template lists the optional settings. They're the same variables the MCP server uses, described under [Authentication](#authentication).
+3. Check it with `node <skill folder>/scripts/zephyr.mjs config`. The command shows where each value came from and masks secrets.
+
+How the CLI finds settings:
+
+- **Environment variables win.** If `ZEPHYR_BASE_URL` and the other settings are already set in your shell, those values are used and the file only fills in what's missing. You can still use shell exports, Claude Code's `settings.json` `env` block, and the other usual methods instead.
+- **`ZEPHYR_ENV_FILE`** points the CLI at a different file. Use it if you keep credentials elsewhere.
+- **File format:** Plain `KEY=value` lines, with `#` comments, optional quotes, and an optional `export ` prefix. Windows Notepad's UTF-8 BOM and CRLF line endings are handled.
+
+The skill folder's own `.gitignore` excludes `.env`, so it isn't committed even when the folder lives in a repository under `.github/skills/`. Each person creates their own `.env`. When you update the skill by copying a newer folder over the old one, your `.env` is kept, because the new folder doesn't contain one.
+
+### Claude Code
+
+Copy the folder to your personal skills directory:
+
+```bash
+cp -R skills/zephyr-scale ~/.claude/skills/zephyr-scale
+```
+
+To share it with one repository's team, put it in `.claude/skills/zephyr-scale/` in that repository instead. Claude loads the skill automatically when a request involves Zephyr test cases, cycles, or executions. You can also invoke it directly with `/zephyr-scale`.
+
+### GitHub Copilot
+
+Copilot supports the same `SKILL.md` format in agent mode in VS Code, the Copilot CLI, and the Copilot cloud agent. Copy the folder to one of these locations:
+
+| Scope | Location |
+|---|---|
+| Personal (all your projects) | `~/.copilot/skills/zephyr-scale/` (`~/.agents/skills/` and `~/.claude/skills/` are also read) |
+| One repository (shared with the team) | `.github/skills/zephyr-scale/` (`.agents/skills/` and `.claude/skills/` are also read) |
+
+```bash
+# personal
+mkdir -p ~/.copilot/skills && cp -R skills/zephyr-scale ~/.copilot/skills/zephyr-scale
+# or project-level, run from your test repository's root
+mkdir -p .github/skills && cp -R /path/to/Zephyr_mcp_server/skills/zephyr-scale .github/skills/zephyr-scale
+```
+
+Notes for Copilot:
+
+- **VS Code:** Use Copilot Chat in **Agent** mode, because Ask and Edit modes can't run terminal commands. Each `node .../zephyr.mjs` call goes through VS Code's terminal approval. You can auto-approve it with the terminal allow-list, but auto-approve read-only tools only. Confirm deletes yourself. The skill folder's `.env` works without restarting VS Code.
+- **Copilot CLI:** Shell commands ask for approval unless you pre-approve them. Credentials come from the skill folder's `.env`, or from variables you export before you start `copilot`.
+- **Cloud agent:** The cloud agent runs in a GitHub Actions sandbox. It doesn't have your local environment, and its firewall blocks most outbound hosts by default. Don't commit a `.env` for it. Provide the `ZEPHYR_*` values as secrets of the repository's `copilot` environment instead. You also need to allow your Jira host and `api.zephyrscale.smartbear.com` (or the EU host) in the cloud agent's firewall settings. Check GitHub's current Copilot cloud agent docs for the exact steps.
+- To check that the skill is picked up, ask Copilot something like *"Using the zephyr-scale skill, get test case PROJ-T123"*.
+
+See GitHub's docs on [creating skills for Copilot](https://docs.github.com/en/copilot/how-tos/use-copilot-agents/cloud-agent/create-skills) and [agent skills in VS Code](https://code.visualstudio.com/docs/copilot/customization/agent-skills).
+
+### Other agents
+
+Any agent that can read a Markdown file and run shell commands can use the skill, for example Codex or Gemini CLI. Point the agent at `SKILL.md`, or use that agent's skills directory if it has one.
+
+### Keeping the skill up to date
+
+`scripts/zephyr.mjs` and `references/tools.md` are generated by `npm run build` from `src/`. After you pull a newer version of this repository, rebuild and copy the folder again.
+
 ## Core Concepts
 
 ### Unified API
-The latest version features a **unified `create_test_case` tool** that supports all test script types (STEP_BY_STEP, PLAIN_TEXT, and BDD) through a single, consistent interface. This matches the official Zephyr Scale REST API v1 structure exactly, simplifying the test creation process.
+A single **`create_test_case` tool** supports all test script types (STEP_BY_STEP, PLAIN_TEXT, and BDD) through one interface. The server maps it to the right Zephyr Scale REST API for your platform: v2 on Cloud, v1 on Data Center.
 
 ### Jira Cloud vs. Data Center
 The server automatically detects your Jira environment and uses the appropriate API version:
@@ -141,8 +253,8 @@ The server provides access to various resources through URI schemes:
 - `add_test_cases_to_run`: Add test cases to an existing test run. *(Cloud only)*
 
 ### Test Execution & Search
-- `get_test_execution`: Get detailed individual test execution results.
-- `list_executions_by_cycle`: List all test executions for a specific test cycle with status, executor, and date. *(Cloud only)*
+- `get_test_execution`: Get detailed individual test execution results. On Data Center, `test_run_keys` is required.
+- `list_executions_by_cycle`: List all test executions for a specific test cycle with status, executor, and date.
 - `update_test_execution`: Update a test case execution's status within a cycle (Pass/Fail/etc.), add a comment, and attach bug(s) as Jira issue links. Identify the execution by `execution_id`, or by `test_cycle_key` + `test_case_key`. *(Cloud only)*
 - `search_test_cases_by_folder`: Search for test cases in a specific folder. Automatically paginates through all results.
 - `search_test_cases`: Search for test cases by a case-insensitive name substring within a project, optionally scoped to an exact folder. Filters client-side (neither platform offers server-side name search); capped at 5000 scanned test cases per call — check the `truncated` field in the response.
@@ -188,7 +300,7 @@ The server provides access to various resources through URI schemes:
 **Note**: `issue_links` requires `JIRA_USERNAME` and `JIRA_API_TOKEN` to be set (Cloud only). Link failures are reported as warnings — the test case is still created.
 
 ### Use a Live Test Case as a Template
-1. Fetch an existing test case: `zephyr://testcase/PROJ-T123`
+1. Fetch an existing test case: `zephyr://testcase/PROJ-T123` (MCP), or the `get_test_case` tool (`node skills/zephyr-scale/scripts/zephyr.mjs get_test_case '{"test_case_key":"PROJ-T123"}'` with the skill).
 2. Copy its structure (especially `customFields` and `folder`).
 3. Create a new test case using the same project-specific configuration.
 
@@ -251,7 +363,7 @@ Returns the linked cycles with resolved keys, e.g. `[{ "id": "110702963", "key":
 | `ZEPHYR_API_BASE_URL` | Optional | Override the Zephyr API base URL (e.g. for EU: `https://eu.api.zephyrscale.smartbear.com/v2`). Defaults to US endpoint. |
 | `JIRA_TYPE` | Optional | Force `"cloud"` or `"datacenter"` — overrides auto-detection |
 
-> **\* `JIRA_USERNAME` + `JIRA_API_TOKEN`**: Required only for the `issue_links` feature on Cloud. The Zephyr API key cannot authenticate against the Jira REST API, so a separate Jira credential is needed to resolve issue keys to numeric IDs. Without these, `issue_links` will fail with a 401 warning — the test case is still created successfully.
+> **\* `JIRA_USERNAME` + `JIRA_API_TOKEN`**: Required on Cloud for anything that turns a Jira issue key into a link. This includes `issue_links` on `create_test_case` and `create_test_run`, `bug_keys` on `update_test_execution`, and the `create_test_case_issue_link`, `create_test_cycle_issue_link`, and `create_test_execution_issue_link` tools. The Zephyr API key can't authenticate against the Jira REST API, so a separate Jira credential is needed to resolve issue keys to numeric IDs. Without it, linking fails with a 401 warning. The main operation still succeeds.
 
 ### Jira Data Center Configuration
 

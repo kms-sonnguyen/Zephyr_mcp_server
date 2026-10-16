@@ -4,7 +4,7 @@
 
 A **Model Context Protocol (MCP) server** that bridges AI assistants to Zephyr Scale test case management. It supports both **Jira Cloud** and **Jira Data Center**, exposing tools and resources for creating, reading, and managing test cases, test runs, and test executions via the Atlassian REST API.
 
-Published to npm as `zephyr-scale-mcp-server` (v0.3.2).
+Fork of `Milo0821/Zephyr_mcp_server` (local `package.json` v0.9.0). The npm package `zephyr-scale-mcp-server` is published from upstream, not this fork.
 
 ---
 
@@ -13,6 +13,9 @@ Published to npm as `zephyr-scale-mcp-server` (v0.3.2).
 ```
 src/
 ├── index.ts          # MCP server entry point — wires transport, tools, resources
+├── cli.ts            # Non-MCP CLI entry point (list / help / <tool> <json>) — backs the agent skill
+├── dispatch.ts       # createToolDispatch(): tool name → handler map, shared by index.ts and cli.ts
+├── env-file.ts       # .env loader for the CLI (skill-folder .env or $ZEPHYR_ENV_FILE)
 ├── tool-handlers.ts  # ZephyrToolHandlers class — all tool implementations
 ├── tool-schemas.ts   # MCP tool input schemas (JSON Schema)
 ├── resources.ts      # MCP resource handlers (file://, zephyr://testcase/, zephyr://examples/)
@@ -24,7 +27,14 @@ test/
 ├── zephyr-server.test.cjs  # Unit tests
 └── integration.test.cjs    # Integration tests (require live env vars)
 scripts/
-└── weekly-report.cjs # Standalone weekly report script
+├── weekly-report.cjs # Standalone weekly report script
+└── build-skill.mjs   # esbuild-bundles build/cli.js into the skill + regenerates references/tools.md
+skills/zephyr-scale/  # Agent skill for orgs without MCP — GENERATED parts committed (see below)
+├── SKILL.md          # Hand-written
+├── scripts/zephyr.mjs  # Generated: single-file bundle (axios + SDK inlined), Node >= 18, no install
+├── references/tools.md # Generated from toolSchemas — never edit by hand
+├── .env.example      # Credentials template (users copy to .env)
+└── .gitignore        # Ignores the user's .env
 ```
 
 **Module system**: The server uses ES modules (`"type": "module"` in package.json); test files use `.cjs` extension to stay CommonJS.
@@ -34,13 +44,29 @@ scripts/
 ## Build & Run
 
 ```bash
-npm run build          # tsc + chmod 755 build/index.js
+npm run build          # tsc + chmod + rebuild skills/zephyr-scale (bundle + tools.md)
 npm start              # node build/index.js
 npm run watch          # tsc --watch
 npm run inspector      # MCP inspector UI
 ```
 
-Always run `npm run build` after editing `src/` — the `build/` directory is what gets published and executed.
+Always run `npm run build` after editing `src/` — the `build/` directory is what gets published and executed. The build also runs `scripts/build-skill.mjs`, which regenerates `skills/zephyr-scale/scripts/zephyr.mjs` and `skills/zephyr-scale/references/tools.md`; commit them together with `src/` changes (the `Skill Reference Up To Date` unit test fails if the reference is stale).
+
+If npm refuses with "configured to use pnpm" (a parent `package.json` declares `packageManager`), prefix with `COREPACK_ENABLE_STRICT=0`.
+
+---
+
+## Agent Skill / CLI (non-MCP)
+
+For orgs that block MCP. `cli.ts` reuses `ZephyrToolHandlers` through the same `createToolDispatch()` map as the MCP server, so a new tool only needs: handler + schema + one line in `dispatch.ts`. It then shows up in the MCP server, the CLI, and the generated skill reference automatically.
+
+- `node skills/zephyr-scale/scripts/zephyr.mjs list | help <tool> | <tool> '<json>'` (JSON may also come on stdin).
+- The CLI validates `required` args from `toolSchemas` itself, since there is no MCP client to do it.
+- Credentials: `src/env-file.ts` loads `$ZEPHYR_ENV_FILE`, or by default `.env` in the skill folder (resolved from the script location, `scripts/..`). It never overrides variables already in `process.env`. It's a tiny hand-written parser, because Node 18 has no `process.loadEnvFile`. `zephyr config` prints each setting's source with secrets masked. The skill folder ships its own `.gitignore` (`.env`) plus a `.env.example`; the root `.gitignore` has a `!skills/zephyr-scale/.env.example` exception.
+- `@path/to/args.json` passes args from a file. This is the Windows/PowerShell-safe path, since PowerShell mangles quoted JSON in native-command arguments.
+- CLI unit tests run against a temp copy of the bundle (`makeSkillCopy()`), never the in-repo skill folder, so a developer's real `skills/zephyr-scale/.env` is never read or clobbered.
+- Exit codes: 0 ok, 1 tool/API error (stderr; `MCP error <code>:` prefix stripped), 2 usage/config error.
+- When adding or renaming a tool, check `SKILL.md`'s quick-reference table, which is hand-written.
 
 ---
 
@@ -63,8 +89,8 @@ Integration tests require at minimum `ZEPHYR_BASE_URL` to be set.
 |---|---|---|
 | `ZEPHYR_BASE_URL` | ✅ | Jira base URL (e.g., `https://company.atlassian.net` or `https://jira.company.com`) |
 | `ZEPHYR_API_KEY` | ✅ | Bearer token for both Cloud and Data Center |
-| `JIRA_USERNAME` | Cloud only | Email address (legacy Cloud auth — currently unused in code, `ZEPHYR_API_KEY` is used for both) |
-| `JIRA_API_TOKEN` | Cloud only | API token (legacy — see above) |
+| `JIRA_USERNAME` | Cloud only | Jira account email — used only by `resolveJiraIssueId()` (Basic auth to Jira REST) to turn issue keys into numeric IDs for issue links / bug keys. Zephyr calls always use `ZEPHYR_API_KEY` |
+| `JIRA_API_TOKEN` | Cloud only | Jira API token paired with `JIRA_USERNAME` (see above) |
 | `JIRA_TYPE` | Optional | `"cloud"` or `"datacenter"` — overrides auto-detection |
 
 **Auto-detection**: If `ZEPHYR_BASE_URL` contains `.atlassian.net` → Cloud; otherwise → Data Center. Override with `JIRA_TYPE`.

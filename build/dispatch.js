@@ -1,0 +1,48 @@
+/**
+ * Maps each tool name in `toolSchemas` to its handler. Shared by the MCP server
+ * (index.ts) and the CLI (cli.ts) so the two entry points cannot drift.
+ */
+export function createToolDispatch(h) {
+    return {
+        get_test_case: (args) => h.getTestCase(args),
+        create_test_case: (args) => h.createTestCase(args),
+        update_test_case_bdd: (args) => h.updateTestCaseBdd(args),
+        update_test_case_custom_fields: (args) => h.updateTestCaseCustomFields(args),
+        move_test_case_folder: (args) => h.moveTestCaseFolder(args),
+        update_test_case_name: (args) => h.updateTestCaseName(args),
+        update_test_case_precondition_objective: (args) => h.updateTestCasePreconditionObjective(args),
+        create_folder: (args) => h.createFolder(args),
+        get_folders: (args) => h.getFolders(args),
+        get_test_run_cases: (args) => h.getTestRunCases(args),
+        delete_test_case: (args) => h.deleteTestCase(args),
+        update_test_run: (args) => h.updateTestRun(args),
+        delete_test_run: (args) => h.deleteTestRun(args),
+        create_test_run: (args) => h.createTestRun(args),
+        get_test_run: (args) => h.getTestRun(args),
+        get_test_execution: (args) => h.getTestExecution(args),
+        search_test_cases_by_folder: (args) => h.searchTestCasesByFolder(args),
+        search_test_cases: (args) => h.searchTestCases(args),
+        search_test_runs: (args) => h.searchTestRuns(args),
+        add_test_cases_to_run: (args) => h.addTestCasesToRun(args),
+        get_test_case_steps: (args) => h.getTestCaseSteps(args),
+        update_test_case_steps: (args) => h.updateTestCaseSteps(args),
+        get_projects: (args) => h.getProjects(args),
+        get_statuses: (args) => h.getStatuses(args),
+        get_priorities: (args) => h.getPriorities(args),
+        get_environments: (args) => h.getEnvironments(args),
+        get_test_script: (args) => h.getTestScript(args),
+        get_test_case_links: (args) => h.getTestCaseLinks(args),
+        create_test_case_web_link: (args) => h.createTestCaseWebLink(args),
+        create_test_case_issue_link: (args) => h.createTestCaseIssueLink(args),
+        get_test_cases_linked_to_issue: (args) => h.getTestCasesLinkedToIssue(args),
+        get_test_cycle_links: (args) => h.getTestCycleLinks(args),
+        create_test_cycle_web_link: (args) => h.createTestCycleWebLink(args),
+        create_test_cycle_issue_link: (args) => h.createTestCycleIssueLink(args),
+        get_test_execution_links: (args) => h.getTestExecutionLinks(args),
+        create_test_execution_issue_link: (args) => h.createTestExecutionIssueLink(args),
+        get_test_executions_linked_to_issue: (args) => h.getTestExecutionsLinkedToIssue(args),
+        list_executions_by_cycle: (args) => h.listExecutionsByCycle(args),
+        update_test_execution: (args) => h.updateTestExecution(args),
+        get_test_cycles_for_issue: (args) => h.getTestCyclesForIssue(args),
+    };
+}

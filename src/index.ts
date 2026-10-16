@@ -15,6 +15,7 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { toolSchemas } from './tool-schemas.js';
 import { ZephyrToolHandlers } from './tool-handlers.js';
+import { createToolDispatch, ToolFn } from './dispatch.js';
 import { resourceList, readResource, setAxiosInstance } from './resources.js';
 import { createJiraConfig } from './utils.js';
 
@@ -27,6 +28,7 @@ const pkg = JSON.parse(
 class ZephyrServer {
   private server: Server;
   private toolHandlers: ZephyrToolHandlers;
+  private dispatch: Record<string, ToolFn>;
 
   constructor() {
     const jiraConfig = createJiraConfig();
@@ -52,6 +54,7 @@ class ZephyrServer {
     setAxiosInstance(axiosInstance);
 
     this.toolHandlers = new ZephyrToolHandlers(axiosInstance, jiraConfig);
+    this.dispatch = createToolDispatch(this.toolHandlers);
     this.setupToolHandlers();
     this.setupResourceHandlers();
     
@@ -71,90 +74,11 @@ class ZephyrServer {
       try {
         const args = request.params.arguments || {};
         
-        switch (request.params.name) {
-          case 'get_test_case':
-            return await this.toolHandlers.getTestCase(args);
-          case 'create_test_case':
-            return await this.toolHandlers.createTestCase(args as any);
-          case 'update_test_case_bdd':
-            return await this.toolHandlers.updateTestCaseBdd(args as any);
-          case 'update_test_case_custom_fields':
-            return await this.toolHandlers.updateTestCaseCustomFields(args as any);
-          case 'move_test_case_folder':
-            return await this.toolHandlers.moveTestCaseFolder(args as any);
-          case 'update_test_case_name':
-            return await this.toolHandlers.updateTestCaseName(args as any);
-          case 'update_test_case_precondition_objective':
-            return await this.toolHandlers.updateTestCasePreconditionObjective(args as any);
-          case 'create_folder':
-            return await this.toolHandlers.createFolder(args as any);
-          case 'get_folders':
-            return await this.toolHandlers.getFolders(args as any);
-          case 'get_test_run_cases':
-            return await this.toolHandlers.getTestRunCases(args);
-          case 'delete_test_case':
-            return await this.toolHandlers.deleteTestCase(args);
-          case 'update_test_run':
-            return await this.toolHandlers.updateTestRun(args);
-          case 'delete_test_run':
-            return await this.toolHandlers.deleteTestRun(args);
-          case 'create_test_run':
-            return await this.toolHandlers.createTestRun(args as any);
-          case 'get_test_run':
-            return await this.toolHandlers.getTestRun(args);
-          case 'get_test_execution':
-            return await this.toolHandlers.getTestExecution(args as any);
-          case 'search_test_cases_by_folder':
-            return await this.toolHandlers.searchTestCasesByFolder(args as any);
-          case 'search_test_cases':
-            return await this.toolHandlers.searchTestCases(args as any);
-          case 'search_test_runs':
-            return await this.toolHandlers.searchTestRuns(args as any);
-          case 'add_test_cases_to_run':
-            return await this.toolHandlers.addTestCasesToRun(args as any);
-          case 'get_test_case_steps':
-            return await this.toolHandlers.getTestCaseSteps(args as any);
-          case 'update_test_case_steps':
-            return await this.toolHandlers.updateTestCaseSteps(args as any);
-          case 'get_projects':
-            return await this.toolHandlers.getProjects(args as any);
-          case 'get_statuses':
-            return await this.toolHandlers.getStatuses(args as any);
-          case 'get_priorities':
-            return await this.toolHandlers.getPriorities(args as any);
-          case 'get_environments':
-            return await this.toolHandlers.getEnvironments(args as any);
-          case 'get_test_script':
-            return await this.toolHandlers.getTestScript(args as any);
-          case 'get_test_case_links':
-            return await this.toolHandlers.getTestCaseLinks(args as any);
-          case 'create_test_case_web_link':
-            return await this.toolHandlers.createTestCaseWebLink(args as any);
-          case 'create_test_case_issue_link':
-            return await this.toolHandlers.createTestCaseIssueLink(args as any);
-          case 'get_test_cases_linked_to_issue':
-            return await this.toolHandlers.getTestCasesLinkedToIssue(args as any);
-          case 'get_test_cycle_links':
-            return await this.toolHandlers.getTestCycleLinks(args as any);
-          case 'create_test_cycle_web_link':
-            return await this.toolHandlers.createTestCycleWebLink(args as any);
-          case 'create_test_cycle_issue_link':
-            return await this.toolHandlers.createTestCycleIssueLink(args as any);
-          case 'get_test_execution_links':
-            return await this.toolHandlers.getTestExecutionLinks(args as any);
-          case 'create_test_execution_issue_link':
-            return await this.toolHandlers.createTestExecutionIssueLink(args as any);
-          case 'get_test_executions_linked_to_issue':
-            return await this.toolHandlers.getTestExecutionsLinkedToIssue(args as any);
-          case 'list_executions_by_cycle':
-            return await this.toolHandlers.listExecutionsByCycle(args as any);
-          case 'update_test_execution':
-            return await this.toolHandlers.updateTestExecution(args as any);
-          case 'get_test_cycles_for_issue':
-            return await this.toolHandlers.getTestCyclesForIssue(args as any);
-          default:
-            throw new McpError(ErrorCode.MethodNotFound, `Unknown tool: ${request.params.name}`);
+        const handler = this.dispatch[request.params.name];
+        if (!handler) {
+          throw new McpError(ErrorCode.MethodNotFound, `Unknown tool: ${request.params.name}`);
         }
+        return await handler(args);
       } catch (error) {
         if (error instanceof McpError) {
           throw error;

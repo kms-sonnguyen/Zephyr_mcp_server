@@ -511,7 +511,7 @@ export const toolSchemas = [
   },
   {
     name: 'list_executions_by_cycle',
-    description: 'List all test executions for a specific test cycle. Returns execution status, executedBy, actualEndDate for each test case in the cycle. Cloud only.',
+    description: 'List all test executions for a specific test cycle. Returns execution status, executedBy, actualEndDate for each test case in the cycle. Works on Cloud (/testexecutions) and Data Center (/testrun/{key}/testresults).',
     inputSchema: {
       type: 'object',
       properties: {
@@ -832,7 +832,7 @@ export const toolSchemas = [
   },
   {
     name: 'get_test_script',
-    description: 'Get the test script (PLAIN_TEXT or BDD content) for a specific test case. Zephyr stores BDD/plain-text test content under the test script resource, separate from STEP_BY_STEP steps — use get_test_case_steps instead for STEP_BY_STEP test cases (Cloud only).',
+    description: 'Get the test script (PLAIN_TEXT or BDD content) for a specific test case. Zephyr stores BDD/plain-text test content under the test script resource, separate from STEP_BY_STEP steps — use get_test_case_steps instead for STEP_BY_STEP test cases. Works on Cloud and Data Center.',
     inputSchema: {
       type: 'object',
       properties: {

@@ -549,9 +549,9 @@ class ZephyrServerTest {
     const path = require('path');
     const schemaContent = fs.readFileSync(path.join(__dirname, '../build/tool-schemas.js'), 'utf8');
     if (!schemaContent.includes("name: 'get_projects'")) throw new Error("'get_projects' not found in built tool-schemas.js");
-    const indexContent = fs.readFileSync(path.join(__dirname, '../build/index.js'), 'utf8');
-    if (!indexContent.includes(`case 'get_projects':`)) throw new Error("build/index.js does not dispatch 'get_projects'");
-    if (!indexContent.includes('getProjects(args')) throw new Error('build/index.js does not call toolHandlers.getProjects(...)');
+    const indexContent = fs.readFileSync(path.join(__dirname, '../build/dispatch.js'), 'utf8');
+    if (!indexContent.includes(`get_projects: (args)`)) throw new Error("build/dispatch.js does not dispatch 'get_projects'");
+    if (!indexContent.includes('getProjects(args')) throw new Error('build/dispatch.js does not call toolHandlers.getProjects(...)');
   }
 
   async testGetStatusesUnit() {
@@ -606,9 +606,9 @@ class ZephyrServerTest {
     const path = require('path');
     const schemaContent = fs.readFileSync(path.join(__dirname, '../build/tool-schemas.js'), 'utf8');
     if (!schemaContent.includes("name: 'get_statuses'")) throw new Error("'get_statuses' not found in built tool-schemas.js");
-    const indexContent = fs.readFileSync(path.join(__dirname, '../build/index.js'), 'utf8');
-    if (!indexContent.includes(`case 'get_statuses':`)) throw new Error("build/index.js does not dispatch 'get_statuses'");
-    if (!indexContent.includes('getStatuses(args')) throw new Error('build/index.js does not call toolHandlers.getStatuses(...)');
+    const indexContent = fs.readFileSync(path.join(__dirname, '../build/dispatch.js'), 'utf8');
+    if (!indexContent.includes(`get_statuses: (args)`)) throw new Error("build/dispatch.js does not dispatch 'get_statuses'");
+    if (!indexContent.includes('getStatuses(args')) throw new Error('build/dispatch.js does not call toolHandlers.getStatuses(...)');
   }
 
   async testGetPrioritiesUnit() {
@@ -661,9 +661,9 @@ class ZephyrServerTest {
     const path = require('path');
     const schemaContent = fs.readFileSync(path.join(__dirname, '../build/tool-schemas.js'), 'utf8');
     if (!schemaContent.includes("name: 'get_priorities'")) throw new Error("'get_priorities' not found in built tool-schemas.js");
-    const indexContent = fs.readFileSync(path.join(__dirname, '../build/index.js'), 'utf8');
-    if (!indexContent.includes(`case 'get_priorities':`)) throw new Error("build/index.js does not dispatch 'get_priorities'");
-    if (!indexContent.includes('getPriorities(args')) throw new Error('build/index.js does not call toolHandlers.getPriorities(...)');
+    const indexContent = fs.readFileSync(path.join(__dirname, '../build/dispatch.js'), 'utf8');
+    if (!indexContent.includes(`get_priorities: (args)`)) throw new Error("build/dispatch.js does not dispatch 'get_priorities'");
+    if (!indexContent.includes('getPriorities(args')) throw new Error('build/dispatch.js does not call toolHandlers.getPriorities(...)');
   }
 
   async testGetEnvironmentsUnit() {
@@ -716,9 +716,9 @@ class ZephyrServerTest {
     const path = require('path');
     const schemaContent = fs.readFileSync(path.join(__dirname, '../build/tool-schemas.js'), 'utf8');
     if (!schemaContent.includes("name: 'get_environments'")) throw new Error("'get_environments' not found in built tool-schemas.js");
-    const indexContent = fs.readFileSync(path.join(__dirname, '../build/index.js'), 'utf8');
-    if (!indexContent.includes(`case 'get_environments':`)) throw new Error("build/index.js does not dispatch 'get_environments'");
-    if (!indexContent.includes('getEnvironments(args')) throw new Error('build/index.js does not call toolHandlers.getEnvironments(...)');
+    const indexContent = fs.readFileSync(path.join(__dirname, '../build/dispatch.js'), 'utf8');
+    if (!indexContent.includes(`get_environments: (args)`)) throw new Error("build/dispatch.js does not dispatch 'get_environments'");
+    if (!indexContent.includes('getEnvironments(args')) throw new Error('build/dispatch.js does not call toolHandlers.getEnvironments(...)');
   }
 
   async testSearchTestCasesCloudUnit() {
@@ -982,14 +982,184 @@ class ZephyrServerTest {
   }
 
   async testIndexDispatchesSearchTestCases() {
+    const { createToolDispatch } = await import('../build/dispatch.js');
+    const calls = [];
+    const fakeHandlers = { searchTestCases: async (args) => { calls.push(args); return { content: [] }; } };
+    const dispatch = createToolDispatch(fakeHandlers);
+    await dispatch.search_test_cases({ project_key: 'QA' });
+    if (calls.length !== 1 || calls[0].project_key !== 'QA') {
+      throw new Error("dispatch 'search_test_cases' does not call handlers.searchTestCases(args)");
+    }
     const fs = require('fs');
-    const content = fs.readFileSync(path.join(__dirname, '../build/index.js'), 'utf8');
-    if (!content.includes(`case 'search_test_cases':`)) {
-      throw new Error("build/index.js does not dispatch 'search_test_cases'");
+    const index = fs.readFileSync(path.join(__dirname, '../build/index.js'), 'utf8');
+    if (!index.includes('createToolDispatch(')) throw new Error('build/index.js does not use createToolDispatch');
+  }
+
+  async testDispatchCoversAllSchemas() {
+    const { createToolDispatch } = await import('../build/dispatch.js');
+    const { toolSchemas } = await import('../build/tool-schemas.js');
+    const dispatch = createToolDispatch({});
+    const names = toolSchemas.map((t) => t.name);
+    const missing = names.filter((n) => !dispatch[n]);
+    const extra = Object.keys(dispatch).filter((n) => !names.includes(n));
+    if (missing.length || extra.length) {
+      throw new Error(`dispatch/schema mismatch — missing: ${missing.join(',') || 'none'}; extra: ${extra.join(',') || 'none'}`);
     }
-    if (!content.includes('searchTestCases(args')) {
-      throw new Error('build/index.js does not call toolHandlers.searchTestCases(...)');
+  }
+
+  /**
+   * Runs the bundled skill CLI with a scrubbed env so no live API is ever hit.
+   */
+  /**
+   * Copies the built skill to a temp dir and returns its root. Tests never run the
+   * in-repo copy: a developer's real skills/zephyr-scale/.env would otherwise be
+   * picked up (and could hit the live API), and env-file tests would clobber it.
+   */
+  makeSkillCopy() {
+    const fs = require('fs');
+    const os = require('os');
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'zephyr-skill-'));
+    fs.mkdirSync(path.join(root, 'scripts'));
+    fs.copyFileSync(
+      path.join(__dirname, '../skills/zephyr-scale/scripts/zephyr.mjs'),
+      path.join(root, 'scripts', 'zephyr.mjs')
+    );
+    return root;
+  }
+
+  runCli(args, { env = {}, stdin, skillRoot } = {}) {
+    const { spawnSync } = require('child_process');
+    if (!skillRoot && !this.sharedSkillRoot) this.sharedSkillRoot = this.makeSkillCopy();
+    const cli = path.join(skillRoot || this.sharedSkillRoot, 'scripts', 'zephyr.mjs');
+    const cleanEnv = { PATH: process.env.PATH, ...env };
+    return spawnSync(process.execPath, [cli, ...args], { env: cleanEnv, input: stdin ?? '', encoding: 'utf8' });
+  }
+
+  async testSkillCli() {
+    const { toolSchemas } = await import('../build/tool-schemas.js');
+
+    const list = this.runCli(['list']);
+    if (list.status !== 0) throw new Error(`list exited ${list.status}: ${list.stderr}`);
+    const listed = list.stdout.trim().split('\n').map((l) => l.split('\t')[0]);
+    if (listed.length !== toolSchemas.length) {
+      throw new Error(`list printed ${listed.length} tools, expected ${toolSchemas.length}`);
     }
+
+    const help = this.runCli(['help', 'get_test_case']);
+    if (help.status !== 0 || JSON.parse(help.stdout).name !== 'get_test_case') {
+      throw new Error(`help get_test_case failed: ${help.stderr}`);
+    }
+
+    const unknown = this.runCli(['no_such_tool', '{}']);
+    if (unknown.status !== 2 || !unknown.stderr.includes('Unknown tool')) {
+      throw new Error(`unknown tool should exit 2, got ${unknown.status}: ${unknown.stderr}`);
+    }
+
+    const missingArg = this.runCli(['get_test_case', '{}']);
+    if (missingArg.status !== 2 || !missingArg.stderr.includes('test_case_key')) {
+      throw new Error(`missing required arg should exit 2, got ${missingArg.status}: ${missingArg.stderr}`);
+    }
+
+    const badJson = this.runCli(['get_test_case', '{not json']);
+    if (badJson.status !== 2 || !badJson.stderr.includes('Invalid JSON')) {
+      throw new Error(`invalid JSON should exit 2, got ${badJson.status}: ${badJson.stderr}`);
+    }
+
+    // Args on stdin pass validation; with no env the next failure is configuration.
+    const noEnv = this.runCli(['get_test_case'], { stdin: '{"test_case_key":"QA-T1"}' });
+    if (noEnv.status !== 2 || !noEnv.stderr.includes('ZEPHYR_BASE_URL')) {
+      throw new Error(`missing env should exit 2 naming ZEPHYR_BASE_URL, got ${noEnv.status}: ${noEnv.stderr}`);
+    }
+
+    // Handler-level McpError surfaces as exit 1 without the "MCP error <code>:" prefix.
+    const dcGated = this.runCli(['get_projects', '{}'], {
+      env: { ZEPHYR_BASE_URL: 'https://jira.example.invalid', ZEPHYR_API_KEY: 'x' },
+    });
+    if (dcGated.status !== 1 || !dcGated.stderr.includes('only supported on Zephyr Scale Cloud') || dcGated.stderr.includes('MCP error')) {
+      throw new Error(`DC-gated tool should exit 1 with clean message, got ${dcGated.status}: ${dcGated.stderr}`);
+    }
+  }
+
+  async testSkillCliEnvFile() {
+    const fs = require('fs');
+    const os = require('os');
+    const skill = this.makeSkillCopy();
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'zephyr-env-'));
+    const run = (args, opts = {}) => this.runCli(args, { ...opts, skillRoot: skill });
+    try {
+      // Default location: .env in the skill folder (next to SKILL.md), Windows-Notepad
+      // style — BOM, CRLF, inline comment, quoted value, blank value.
+      fs.writeFileSync(
+        path.join(skill, '.env'),
+        '\uFEFF# comment\r\nZEPHYR_BASE_URL=https://jira.example.invalid   # DC\r\nexport ZEPHYR_API_KEY="abc123secretXYZ9"\r\nJIRA_TYPE=\r\n'
+      );
+
+      const config = run(['config']);
+      if (config.status !== 0) throw new Error(`config exited ${config.status}: ${config.stderr}`);
+      if (!config.stdout.includes(`${path.join(skill, '.env')} (found)`)) {
+        throw new Error(`config did not find skill-folder .env:\n${config.stdout}`);
+      }
+      if (!config.stdout.includes('ZEPHYR_BASE_URL: https://jira.example.invalid [from env file]')) {
+        throw new Error(`inline comment not stripped or source wrong:\n${config.stdout}`);
+      }
+      if (config.stdout.includes('abc123secret') || !config.stdout.includes('********XYZ9')) {
+        throw new Error(`API key not masked:\n${config.stdout}`);
+      }
+
+      // Values from the file reach the tool: DC URL => DC-gated error, not a config error.
+      const fromFile = run(['get_projects', '{}']);
+      if (fromFile.status !== 1 || !fromFile.stderr.includes('only supported on Zephyr Scale Cloud')) {
+        throw new Error(`env file values not applied, got ${fromFile.status}: ${fromFile.stderr}`);
+      }
+
+      // Real environment wins over the file.
+      const override = run(['config'], { env: { ZEPHYR_BASE_URL: 'https://x.atlassian.net' } });
+      if (!override.stdout.includes('ZEPHYR_BASE_URL: https://x.atlassian.net [from environment]')) {
+        throw new Error(`environment should override env file:\n${override.stdout}`);
+      }
+
+      // ZEPHYR_ENV_FILE selects another file; a missing one is a config error.
+      const custom = path.join(tmp, 'custom.env');
+      fs.writeFileSync(custom, "ZEPHYR_BASE_URL='https://custom.example.invalid'\nZEPHYR_API_KEY=k\n");
+      const viaVar = run(['config'], { env: { ZEPHYR_ENV_FILE: custom } });
+      if (!viaVar.stdout.includes('ZEPHYR_BASE_URL: https://custom.example.invalid [from env file]')) {
+        throw new Error(`ZEPHYR_ENV_FILE not honoured:\n${viaVar.stdout}${viaVar.stderr}`);
+      }
+      const missing = run(['config'], { env: { ZEPHYR_ENV_FILE: path.join(tmp, 'nope.env') } });
+      if (missing.status !== 2 || !missing.stderr.includes('does not exist')) {
+        throw new Error(`missing ZEPHYR_ENV_FILE should exit 2, got ${missing.status}: ${missing.stderr}`);
+      }
+
+      // @file arguments (BOM tolerated) — the PowerShell-safe way to pass JSON.
+      const argsFile = path.join(tmp, 'args.json');
+      fs.writeFileSync(argsFile, '\uFEFF{"project_key_or_id":"QA"}');
+      const atFile = run(['get_projects', `@${argsFile}`]);
+      if (atFile.status !== 1 || !atFile.stderr.includes('only supported on Zephyr Scale Cloud')) {
+        throw new Error(`@file args not accepted, got ${atFile.status}: ${atFile.stderr}`);
+      }
+      const atMissing = run(['get_projects', `@${path.join(tmp, 'nope.json')}`]);
+      if (atMissing.status !== 2 || !atMissing.stderr.includes('Cannot read arguments file')) {
+        throw new Error(`missing @file should exit 2, got ${atMissing.status}: ${atMissing.stderr}`);
+      }
+
+      // No .env at all: the config error names where the file should go.
+      fs.rmSync(path.join(skill, '.env'));
+      const none = run(['get_test_case', '{"test_case_key":"QA-T1"}']);
+      if (none.status !== 2 || !none.stderr.includes(path.join(skill, '.env'))) {
+        throw new Error(`missing config should name the skill .env path, got ${none.status}: ${none.stderr}`);
+      }
+    } finally {
+      fs.rmSync(tmp, { recursive: true, force: true });
+      fs.rmSync(skill, { recursive: true, force: true });
+    }
+  }
+
+  async testSkillReferenceUpToDate() {
+    const fs = require('fs');
+    const { toolSchemas } = await import('../build/tool-schemas.js');
+    const ref = fs.readFileSync(path.join(__dirname, '../skills/zephyr-scale/references/tools.md'), 'utf8');
+    const missing = toolSchemas.map((t) => t.name).filter((n) => !ref.includes(`## ${n}\n`));
+    if (missing.length) throw new Error(`references/tools.md is stale (run npm run build): ${missing.join(', ')}`);
   }
 
   async testGetTestScriptUnit() {
@@ -1043,9 +1213,9 @@ class ZephyrServerTest {
     const fs = require('fs');
     const schemaContent = fs.readFileSync(path.join(__dirname, '../build/tool-schemas.js'), 'utf8');
     if (!schemaContent.includes("name: 'get_test_script'")) throw new Error("'get_test_script' not found in built tool-schemas.js");
-    const indexContent = fs.readFileSync(path.join(__dirname, '../build/index.js'), 'utf8');
-    if (!indexContent.includes(`case 'get_test_script':`)) throw new Error("build/index.js does not dispatch 'get_test_script'");
-    if (!indexContent.includes('getTestScript(args')) throw new Error('build/index.js does not call toolHandlers.getTestScript(...)');
+    const indexContent = fs.readFileSync(path.join(__dirname, '../build/dispatch.js'), 'utf8');
+    if (!indexContent.includes(`get_test_script: (args)`)) throw new Error("build/dispatch.js does not dispatch 'get_test_script'");
+    if (!indexContent.includes('getTestScript(args')) throw new Error('build/dispatch.js does not call toolHandlers.getTestScript(...)');
   }
 
   async testGetTestCaseLinksUnit() {
@@ -1099,9 +1269,9 @@ class ZephyrServerTest {
     const path = require('path');
     const schemaContent = fs.readFileSync(path.join(__dirname, '../build/tool-schemas.js'), 'utf8');
     if (!schemaContent.includes("name: 'get_test_case_links'")) throw new Error("'get_test_case_links' not found in built tool-schemas.js");
-    const indexContent = fs.readFileSync(path.join(__dirname, '../build/index.js'), 'utf8');
-    if (!indexContent.includes(`case 'get_test_case_links':`)) throw new Error("build/index.js does not dispatch 'get_test_case_links'");
-    if (!indexContent.includes('getTestCaseLinks(args')) throw new Error('build/index.js does not call toolHandlers.getTestCaseLinks(...)');
+    const indexContent = fs.readFileSync(path.join(__dirname, '../build/dispatch.js'), 'utf8');
+    if (!indexContent.includes(`get_test_case_links: (args)`)) throw new Error("build/dispatch.js does not dispatch 'get_test_case_links'");
+    if (!indexContent.includes('getTestCaseLinks(args')) throw new Error('build/dispatch.js does not call toolHandlers.getTestCaseLinks(...)');
   }
 
   async testCreateTestCaseWebLinkUnit() {
@@ -1149,9 +1319,9 @@ class ZephyrServerTest {
     const path = require('path');
     const schemaContent = fs.readFileSync(path.join(__dirname, '../build/tool-schemas.js'), 'utf8');
     if (!schemaContent.includes("name: 'create_test_case_web_link'")) throw new Error("'create_test_case_web_link' not found in built tool-schemas.js");
-    const indexContent = fs.readFileSync(path.join(__dirname, '../build/index.js'), 'utf8');
-    if (!indexContent.includes(`case 'create_test_case_web_link':`)) throw new Error("build/index.js does not dispatch 'create_test_case_web_link'");
-    if (!indexContent.includes('createTestCaseWebLink(args')) throw new Error('build/index.js does not call toolHandlers.createTestCaseWebLink(...)');
+    const indexContent = fs.readFileSync(path.join(__dirname, '../build/dispatch.js'), 'utf8');
+    if (!indexContent.includes(`create_test_case_web_link: (args)`)) throw new Error("build/dispatch.js does not dispatch 'create_test_case_web_link'");
+    if (!indexContent.includes('createTestCaseWebLink(args')) throw new Error('build/dispatch.js does not call toolHandlers.createTestCaseWebLink(...)');
   }
 
   async testCreateTestCaseIssueLinkUnit() {
@@ -1211,9 +1381,9 @@ class ZephyrServerTest {
     const path = require('path');
     const schemaContent = fs.readFileSync(path.join(__dirname, '../build/tool-schemas.js'), 'utf8');
     if (!schemaContent.includes("name: 'create_test_case_issue_link'")) throw new Error("'create_test_case_issue_link' not found in built tool-schemas.js");
-    const indexContent = fs.readFileSync(path.join(__dirname, '../build/index.js'), 'utf8');
-    if (!indexContent.includes(`case 'create_test_case_issue_link':`)) throw new Error("build/index.js does not dispatch 'create_test_case_issue_link'");
-    if (!indexContent.includes('createTestCaseIssueLink(args')) throw new Error('build/index.js does not call toolHandlers.createTestCaseIssueLink(...)');
+    const indexContent = fs.readFileSync(path.join(__dirname, '../build/dispatch.js'), 'utf8');
+    if (!indexContent.includes(`create_test_case_issue_link: (args)`)) throw new Error("build/dispatch.js does not dispatch 'create_test_case_issue_link'");
+    if (!indexContent.includes('createTestCaseIssueLink(args')) throw new Error('build/dispatch.js does not call toolHandlers.createTestCaseIssueLink(...)');
   }
 
   async testGetTestCasesLinkedToIssueUnit() {
@@ -1261,9 +1431,9 @@ class ZephyrServerTest {
     const path = require('path');
     const schemaContent = fs.readFileSync(path.join(__dirname, '../build/tool-schemas.js'), 'utf8');
     if (!schemaContent.includes("name: 'get_test_cases_linked_to_issue'")) throw new Error("'get_test_cases_linked_to_issue' not found in built tool-schemas.js");
-    const indexContent = fs.readFileSync(path.join(__dirname, '../build/index.js'), 'utf8');
-    if (!indexContent.includes(`case 'get_test_cases_linked_to_issue':`)) throw new Error("build/index.js does not dispatch 'get_test_cases_linked_to_issue'");
-    if (!indexContent.includes('getTestCasesLinkedToIssue(args')) throw new Error('build/index.js does not call toolHandlers.getTestCasesLinkedToIssue(...)');
+    const indexContent = fs.readFileSync(path.join(__dirname, '../build/dispatch.js'), 'utf8');
+    if (!indexContent.includes(`get_test_cases_linked_to_issue: (args)`)) throw new Error("build/dispatch.js does not dispatch 'get_test_cases_linked_to_issue'");
+    if (!indexContent.includes('getTestCasesLinkedToIssue(args')) throw new Error('build/dispatch.js does not call toolHandlers.getTestCasesLinkedToIssue(...)');
   }
 
   async testGetTestCycleLinksUnit() {
@@ -1317,9 +1487,9 @@ class ZephyrServerTest {
     const path = require('path');
     const schemaContent = fs.readFileSync(path.join(__dirname, '../build/tool-schemas.js'), 'utf8');
     if (!schemaContent.includes("name: 'get_test_cycle_links'")) throw new Error("'get_test_cycle_links' not found in built tool-schemas.js");
-    const indexContent = fs.readFileSync(path.join(__dirname, '../build/index.js'), 'utf8');
-    if (!indexContent.includes(`case 'get_test_cycle_links':`)) throw new Error("build/index.js does not dispatch 'get_test_cycle_links'");
-    if (!indexContent.includes('getTestCycleLinks(args')) throw new Error('build/index.js does not call toolHandlers.getTestCycleLinks(...)');
+    const indexContent = fs.readFileSync(path.join(__dirname, '../build/dispatch.js'), 'utf8');
+    if (!indexContent.includes(`get_test_cycle_links: (args)`)) throw new Error("build/dispatch.js does not dispatch 'get_test_cycle_links'");
+    if (!indexContent.includes('getTestCycleLinks(args')) throw new Error('build/dispatch.js does not call toolHandlers.getTestCycleLinks(...)');
   }
 
   async testCreateTestCycleWebLinkUnit() {
@@ -1366,9 +1536,9 @@ class ZephyrServerTest {
     const path = require('path');
     const schemaContent = fs.readFileSync(path.join(__dirname, '../build/tool-schemas.js'), 'utf8');
     if (!schemaContent.includes("name: 'create_test_cycle_web_link'")) throw new Error("'create_test_cycle_web_link' not found in built tool-schemas.js");
-    const indexContent = fs.readFileSync(path.join(__dirname, '../build/index.js'), 'utf8');
-    if (!indexContent.includes(`case 'create_test_cycle_web_link':`)) throw new Error("build/index.js does not dispatch 'create_test_cycle_web_link'");
-    if (!indexContent.includes('createTestCycleWebLink(args')) throw new Error('build/index.js does not call toolHandlers.createTestCycleWebLink(...)');
+    const indexContent = fs.readFileSync(path.join(__dirname, '../build/dispatch.js'), 'utf8');
+    if (!indexContent.includes(`create_test_cycle_web_link: (args)`)) throw new Error("build/dispatch.js does not dispatch 'create_test_cycle_web_link'");
+    if (!indexContent.includes('createTestCycleWebLink(args')) throw new Error('build/dispatch.js does not call toolHandlers.createTestCycleWebLink(...)');
   }
 
   async testCreateTestCycleIssueLinkUnit() {
@@ -1422,9 +1592,9 @@ class ZephyrServerTest {
     const path = require('path');
     const schemaContent = fs.readFileSync(path.join(__dirname, '../build/tool-schemas.js'), 'utf8');
     if (!schemaContent.includes("name: 'create_test_cycle_issue_link'")) throw new Error("'create_test_cycle_issue_link' not found in built tool-schemas.js");
-    const indexContent = fs.readFileSync(path.join(__dirname, '../build/index.js'), 'utf8');
-    if (!indexContent.includes(`case 'create_test_cycle_issue_link':`)) throw new Error("build/index.js does not dispatch 'create_test_cycle_issue_link'");
-    if (!indexContent.includes('createTestCycleIssueLink(args')) throw new Error('build/index.js does not call toolHandlers.createTestCycleIssueLink(...)');
+    const indexContent = fs.readFileSync(path.join(__dirname, '../build/dispatch.js'), 'utf8');
+    if (!indexContent.includes(`create_test_cycle_issue_link: (args)`)) throw new Error("build/dispatch.js does not dispatch 'create_test_cycle_issue_link'");
+    if (!indexContent.includes('createTestCycleIssueLink(args')) throw new Error('build/dispatch.js does not call toolHandlers.createTestCycleIssueLink(...)');
   }
 
   async testGetTestExecutionLinksUnit() {
@@ -1467,9 +1637,9 @@ class ZephyrServerTest {
     const path = require('path');
     const schemaContent = fs.readFileSync(path.join(__dirname, '../build/tool-schemas.js'), 'utf8');
     if (!schemaContent.includes("name: 'get_test_execution_links'")) throw new Error("'get_test_execution_links' not found in built tool-schemas.js");
-    const indexContent = fs.readFileSync(path.join(__dirname, '../build/index.js'), 'utf8');
-    if (!indexContent.includes(`case 'get_test_execution_links':`)) throw new Error("build/index.js does not dispatch 'get_test_execution_links'");
-    if (!indexContent.includes('getTestExecutionLinks(args')) throw new Error('build/index.js does not call toolHandlers.getTestExecutionLinks(...)');
+    const indexContent = fs.readFileSync(path.join(__dirname, '../build/dispatch.js'), 'utf8');
+    if (!indexContent.includes(`get_test_execution_links: (args)`)) throw new Error("build/dispatch.js does not dispatch 'get_test_execution_links'");
+    if (!indexContent.includes('getTestExecutionLinks(args')) throw new Error('build/dispatch.js does not call toolHandlers.getTestExecutionLinks(...)');
   }
 
   async testCreateTestExecutionIssueLinkUnit() {
@@ -1523,9 +1693,9 @@ class ZephyrServerTest {
     const path = require('path');
     const schemaContent = fs.readFileSync(path.join(__dirname, '../build/tool-schemas.js'), 'utf8');
     if (!schemaContent.includes("name: 'create_test_execution_issue_link'")) throw new Error("'create_test_execution_issue_link' not found in built tool-schemas.js");
-    const indexContent = fs.readFileSync(path.join(__dirname, '../build/index.js'), 'utf8');
-    if (!indexContent.includes(`case 'create_test_execution_issue_link':`)) throw new Error("build/index.js does not dispatch 'create_test_execution_issue_link'");
-    if (!indexContent.includes('createTestExecutionIssueLink(args')) throw new Error('build/index.js does not call toolHandlers.createTestExecutionIssueLink(...)');
+    const indexContent = fs.readFileSync(path.join(__dirname, '../build/dispatch.js'), 'utf8');
+    if (!indexContent.includes(`create_test_execution_issue_link: (args)`)) throw new Error("build/dispatch.js does not dispatch 'create_test_execution_issue_link'");
+    if (!indexContent.includes('createTestExecutionIssueLink(args')) throw new Error('build/dispatch.js does not call toolHandlers.createTestExecutionIssueLink(...)');
   }
 
   async testGetTestExecutionsLinkedToIssueUnit() {
@@ -1565,9 +1735,9 @@ class ZephyrServerTest {
     const path = require('path');
     const schemaContent = fs.readFileSync(path.join(__dirname, '../build/tool-schemas.js'), 'utf8');
     if (!schemaContent.includes("name: 'get_test_executions_linked_to_issue'")) throw new Error("'get_test_executions_linked_to_issue' not found in built tool-schemas.js");
-    const indexContent = fs.readFileSync(path.join(__dirname, '../build/index.js'), 'utf8');
-    if (!indexContent.includes(`case 'get_test_executions_linked_to_issue':`)) throw new Error("build/index.js does not dispatch 'get_test_executions_linked_to_issue'");
-    if (!indexContent.includes('getTestExecutionsLinkedToIssue(args')) throw new Error('build/index.js does not call toolHandlers.getTestExecutionsLinkedToIssue(...)');
+    const indexContent = fs.readFileSync(path.join(__dirname, '../build/dispatch.js'), 'utf8');
+    if (!indexContent.includes(`get_test_executions_linked_to_issue: (args)`)) throw new Error("build/dispatch.js does not dispatch 'get_test_executions_linked_to_issue'");
+    if (!indexContent.includes('getTestExecutionsLinkedToIssue(args')) throw new Error('build/dispatch.js does not call toolHandlers.getTestExecutionsLinkedToIssue(...)');
   }
 
   async testUpdateTestCaseCustomFieldsUnit() {
@@ -1662,9 +1832,9 @@ class ZephyrServerTest {
     const path = require('path');
     const schemaContent = fs.readFileSync(path.join(__dirname, '../build/tool-schemas.js'), 'utf8');
     if (!schemaContent.includes("name: 'update_test_case_custom_fields'")) throw new Error("'update_test_case_custom_fields' not found in built tool-schemas.js");
-    const indexContent = fs.readFileSync(path.join(__dirname, '../build/index.js'), 'utf8');
-    if (!indexContent.includes(`case 'update_test_case_custom_fields':`)) throw new Error("build/index.js does not dispatch 'update_test_case_custom_fields'");
-    if (!indexContent.includes('updateTestCaseCustomFields(args')) throw new Error('build/index.js does not call toolHandlers.updateTestCaseCustomFields(...)');
+    const indexContent = fs.readFileSync(path.join(__dirname, '../build/dispatch.js'), 'utf8');
+    if (!indexContent.includes(`update_test_case_custom_fields: (args)`)) throw new Error("build/dispatch.js does not dispatch 'update_test_case_custom_fields'");
+    if (!indexContent.includes('updateTestCaseCustomFields(args')) throw new Error('build/dispatch.js does not call toolHandlers.updateTestCaseCustomFields(...)');
   }
 
   async testMoveTestCaseFolderUnit() {
@@ -1773,9 +1943,9 @@ class ZephyrServerTest {
     const path = require('path');
     const schemaContent = fs.readFileSync(path.join(__dirname, '../build/tool-schemas.js'), 'utf8');
     if (!schemaContent.includes("name: 'move_test_case_folder'")) throw new Error("'move_test_case_folder' not found in built tool-schemas.js");
-    const indexContent = fs.readFileSync(path.join(__dirname, '../build/index.js'), 'utf8');
-    if (!indexContent.includes(`case 'move_test_case_folder':`)) throw new Error("build/index.js does not dispatch 'move_test_case_folder'");
-    if (!indexContent.includes('moveTestCaseFolder(args')) throw new Error('build/index.js does not call toolHandlers.moveTestCaseFolder(...)');
+    const indexContent = fs.readFileSync(path.join(__dirname, '../build/dispatch.js'), 'utf8');
+    if (!indexContent.includes(`move_test_case_folder: (args)`)) throw new Error("build/dispatch.js does not dispatch 'move_test_case_folder'");
+    if (!indexContent.includes('moveTestCaseFolder(args')) throw new Error('build/dispatch.js does not call toolHandlers.moveTestCaseFolder(...)');
   }
 
   async testUpdateTestCaseNameUnit() {
@@ -1881,9 +2051,9 @@ class ZephyrServerTest {
     const path = require('path');
     const schemaContent = fs.readFileSync(path.join(__dirname, '../build/tool-schemas.js'), 'utf8');
     if (!schemaContent.includes("name: 'update_test_case_name'")) throw new Error("'update_test_case_name' not found in built tool-schemas.js");
-    const indexContent = fs.readFileSync(path.join(__dirname, '../build/index.js'), 'utf8');
-    if (!indexContent.includes(`case 'update_test_case_name':`)) throw new Error("build/index.js does not dispatch 'update_test_case_name'");
-    if (!indexContent.includes('updateTestCaseName(args')) throw new Error('build/index.js does not call toolHandlers.updateTestCaseName(...)');
+    const indexContent = fs.readFileSync(path.join(__dirname, '../build/dispatch.js'), 'utf8');
+    if (!indexContent.includes(`update_test_case_name: (args)`)) throw new Error("build/dispatch.js does not dispatch 'update_test_case_name'");
+    if (!indexContent.includes('updateTestCaseName(args')) throw new Error('build/dispatch.js does not call toolHandlers.updateTestCaseName(...)');
   }
 
   async testUpdateTestCasePreconditionObjectiveUnit() {
@@ -2029,9 +2199,9 @@ class ZephyrServerTest {
     const path = require('path');
     const schemaContent = fs.readFileSync(path.join(__dirname, '../build/tool-schemas.js'), 'utf8');
     if (!schemaContent.includes("name: 'update_test_case_precondition_objective'")) throw new Error("'update_test_case_precondition_objective' not found in built tool-schemas.js");
-    const indexContent = fs.readFileSync(path.join(__dirname, '../build/index.js'), 'utf8');
-    if (!indexContent.includes(`case 'update_test_case_precondition_objective':`)) throw new Error("build/index.js does not dispatch 'update_test_case_precondition_objective'");
-    if (!indexContent.includes('updateTestCasePreconditionObjective(args')) throw new Error('build/index.js does not call toolHandlers.updateTestCasePreconditionObjective(...)');
+    const indexContent = fs.readFileSync(path.join(__dirname, '../build/dispatch.js'), 'utf8');
+    if (!indexContent.includes(`update_test_case_precondition_objective: (args)`)) throw new Error("build/dispatch.js does not dispatch 'update_test_case_precondition_objective'");
+    if (!indexContent.includes('updateTestCasePreconditionObjective(args')) throw new Error('build/dispatch.js does not call toolHandlers.updateTestCasePreconditionObjective(...)');
   }
 
   /**
@@ -2056,6 +2226,10 @@ class ZephyrServerTest {
     await this.runTest('search_test_cases Cloud Unit Tests', () => this.testSearchTestCasesCloudUnit());
     await this.runTest('search_test_cases Data Center Unit Tests', () => this.testSearchTestCasesDataCenterUnit());
     await this.runTest('search_test_cases Index Dispatch', () => this.testIndexDispatchesSearchTestCases());
+    await this.runTest('Dispatch Covers All Schemas', () => this.testDispatchCoversAllSchemas());
+    await this.runTest('Skill CLI', () => this.testSkillCli());
+    await this.runTest('Skill CLI Env File', () => this.testSkillCliEnvFile());
+    await this.runTest('Skill Reference Up To Date', () => this.testSkillReferenceUpToDate());
     await this.runTest('get_test_script Unit Tests', () => this.testGetTestScriptUnit());
     await this.runTest('get_test_case_links Unit Tests', () => this.testGetTestCaseLinksUnit());
     await this.runTest('create_test_case_web_link Unit Tests', () => this.testCreateTestCaseWebLinkUnit());
@@ -2071,6 +2245,8 @@ class ZephyrServerTest {
     await this.runTest('move_test_case_folder Unit Tests', () => this.testMoveTestCaseFolderUnit());
     await this.runTest('update_test_case_name Unit Tests', () => this.testUpdateTestCaseNameUnit());
     await this.runTest('update_test_case_precondition_objective Unit Tests', () => this.testUpdateTestCasePreconditionObjectiveUnit());
+
+    if (this.sharedSkillRoot) require('fs').rmSync(this.sharedSkillRoot, { recursive: true, force: true });
 
     // Print summary
     console.log('\n' + '=' .repeat(60));

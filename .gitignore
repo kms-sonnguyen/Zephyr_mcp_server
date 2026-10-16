@@ -21,3 +21,6 @@ logs/
 # Misc
 .claude/
 api.cloud.stripped.yml
+
+# Credential template shipped with the agent skill
+!skills/zephyr-scale/.env.example

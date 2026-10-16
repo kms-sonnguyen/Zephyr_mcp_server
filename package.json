@@ -5,7 +5,8 @@
   "type": "module",
   "main": "./build/index.js",
   "bin": {
-    "zephyr-scale-mcp": "build/index.js"
+    "zephyr-scale-mcp": "build/index.js",
+    "zephyr-scale-cli": "build/cli.js"
   },
   "files": [
     "build/",
@@ -14,7 +15,7 @@
     "LICENSE"
   ],
   "scripts": {
-    "build": "tsc && node -e \"require('fs').chmodSync('build/index.js', '755')\"",
+    "build": "tsc && node -e \"['build/index.js','build/cli.js'].forEach(f=>require('fs').chmodSync(f,'755'))\" && node scripts/build-skill.mjs",
     "prepare": "npm run build",
     "watch": "tsc --watch",
     "start": "node build/index.js",
@@ -61,6 +62,7 @@
   },
   "devDependencies": {
     "@types/node": "^20.11.24",
+    "esbuild": "^0.25.10",
     "typescript": "^5.8.3"
   },
   "publishConfig": {

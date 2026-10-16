@@ -8,6 +8,7 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { toolSchemas } from './tool-schemas.js';
 import { ZephyrToolHandlers } from './tool-handlers.js';
+import { createToolDispatch } from './dispatch.js';
 import { resourceList, readResource, setAxiosInstance } from './resources.js';
 import { createJiraConfig } from './utils.js';
 // Read version from package.json (../ relative to build/index.js at runtime) so
@@ -16,6 +17,7 @@ const pkg = JSON.parse(readFileSync(join(dirname(fileURLToPath(import.meta.url))
 class ZephyrServer {
     server;
     toolHandlers;
+    dispatch;
     constructor() {
         const jiraConfig = createJiraConfig();
         this.server = new Server({
@@ -33,6 +35,7 @@ class ZephyrServer {
         });
         setAxiosInstance(axiosInstance);
         this.toolHandlers = new ZephyrToolHandlers(axiosInstance, jiraConfig);
+        this.dispatch = createToolDispatch(this.toolHandlers);
         this.setupToolHandlers();
         this.setupResourceHandlers();
         this.server.onerror = (error) => console.error('[MCP Error]', error);
@@ -48,90 +51,11 @@ class ZephyrServer {
         this.server.setRequestHandler(CallToolRequestSchema, async (request) => {
             try {
                 const args = request.params.arguments || {};
-                switch (request.params.name) {
-                    case 'get_test_case':
-                        return await this.toolHandlers.getTestCase(args);
-                    case 'create_test_case':
-                        return await this.toolHandlers.createTestCase(args);
-                    case 'update_test_case_bdd':
-                        return await this.toolHandlers.updateTestCaseBdd(args);
-                    case 'update_test_case_custom_fields':
-                        return await this.toolHandlers.updateTestCaseCustomFields(args);
-                    case 'move_test_case_folder':
-                        return await this.toolHandlers.moveTestCaseFolder(args);
-                    case 'update_test_case_name':
-                        return await this.toolHandlers.updateTestCaseName(args);
-                    case 'update_test_case_precondition_objective':
-                        return await this.toolHandlers.updateTestCasePreconditionObjective(args);
-                    case 'create_folder':
-                        return await this.toolHandlers.createFolder(args);
-                    case 'get_folders':
-                        return await this.toolHandlers.getFolders(args);
-                    case 'get_test_run_cases':
-                        return await this.toolHandlers.getTestRunCases(args);
-                    case 'delete_test_case':
-                        return await this.toolHandlers.deleteTestCase(args);
-                    case 'update_test_run':
-                        return await this.toolHandlers.updateTestRun(args);
-                    case 'delete_test_run':
-                        return await this.toolHandlers.deleteTestRun(args);
-                    case 'create_test_run':
-                        return await this.toolHandlers.createTestRun(args);
-                    case 'get_test_run':
-                        return await this.toolHandlers.getTestRun(args);
-                    case 'get_test_execution':
-                        return await this.toolHandlers.getTestExecution(args);
-                    case 'search_test_cases_by_folder':
-                        return await this.toolHandlers.searchTestCasesByFolder(args);
-                    case 'search_test_cases':
-                        return await this.toolHandlers.searchTestCases(args);
-                    case 'search_test_runs':
-                        return await this.toolHandlers.searchTestRuns(args);
-                    case 'add_test_cases_to_run':
-                        return await this.toolHandlers.addTestCasesToRun(args);
-                    case 'get_test_case_steps':
-                        return await this.toolHandlers.getTestCaseSteps(args);
-                    case 'update_test_case_steps':
-                        return await this.toolHandlers.updateTestCaseSteps(args);
-                    case 'get_projects':
-                        return await this.toolHandlers.getProjects(args);
-                    case 'get_statuses':
-                        return await this.toolHandlers.getStatuses(args);
-                    case 'get_priorities':
-                        return await this.toolHandlers.getPriorities(args);
-                    case 'get_environments':
-                        return await this.toolHandlers.getEnvironments(args);
-                    case 'get_test_script':
-                        return await this.toolHandlers.getTestScript(args);
-                    case 'get_test_case_links':
-                        return await this.toolHandlers.getTestCaseLinks(args);
-                    case 'create_test_case_web_link':
-                        return await this.toolHandlers.createTestCaseWebLink(args);
-                    case 'create_test_case_issue_link':
-                        return await this.toolHandlers.createTestCaseIssueLink(args);
-                    case 'get_test_cases_linked_to_issue':
-                        return await this.toolHandlers.getTestCasesLinkedToIssue(args);
-                    case 'get_test_cycle_links':
-                        return await this.toolHandlers.getTestCycleLinks(args);
-                    case 'create_test_cycle_web_link':
-                        return await this.toolHandlers.createTestCycleWebLink(args);
-                    case 'create_test_cycle_issue_link':
-                        return await this.toolHandlers.createTestCycleIssueLink(args);
-                    case 'get_test_execution_links':
-                        return await this.toolHandlers.getTestExecutionLinks(args);
-                    case 'create_test_execution_issue_link':
-                        return await this.toolHandlers.createTestExecutionIssueLink(args);
-                    case 'get_test_executions_linked_to_issue':
-                        return await this.toolHandlers.getTestExecutionsLinkedToIssue(args);
-                    case 'list_executions_by_cycle':
-                        return await this.toolHandlers.listExecutionsByCycle(args);
-                    case 'update_test_execution':
-                        return await this.toolHandlers.updateTestExecution(args);
-                    case 'get_test_cycles_for_issue':
-                        return await this.toolHandlers.getTestCyclesForIssue(args);
-                    default:
-                        throw new McpError(ErrorCode.MethodNotFound, `Unknown tool: ${request.params.name}`);
+                const handler = this.dispatch[request.params.name];
+                if (!handler) {
+                    throw new McpError(ErrorCode.MethodNotFound, `Unknown tool: ${request.params.name}`);
                 }
+                return await handler(args);
             }
             catch (error) {
                 if (error instanceof McpError) {
